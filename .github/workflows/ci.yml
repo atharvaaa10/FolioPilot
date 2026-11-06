@@ -1,0 +1,123 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  api:
+    name: API (Backend)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: foliopilot
+          POSTGRES_PASSWORD: foliopilot
+          POSTGRES_DB: foliopilot
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      APP_NAME: FolioPilot
+      ENVIRONMENT: test
+      DATABASE_URL: postgresql+asyncpg://foliopilot:foliopilot@localhost:5432/foliopilot
+      REDIS_URL: redis://localhost:6379/0
+      JWT_SECRET: test-ci-secret-key-at-least-thirty-two-chars
+      JWT_ALGORITHM: HS256
+      CORS_ORIGINS: '["http://localhost:3000"]'
+      LOG_LEVEL: INFO
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: Install dependencies
+        working-directory: apps/api
+        run: uv sync --frozen
+
+      - name: Lint with Ruff
+        working-directory: apps/api
+        run: uv run ruff check .
+
+      - name: Check formatting with Ruff
+        working-directory: apps/api
+        run: uv run ruff format --check .
+
+      - name: Typecheck with mypy
+        working-directory: apps/api
+        run: uv run mypy app
+
+      - name: Run Alembic migration against pgvector
+        working-directory: apps/api
+        run: uv run alembic upgrade head
+
+      - name: Run tests with pytest
+        working-directory: apps/api
+        run: uv run pytest
+
+  web:
+    name: Web (Frontend)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install dependencies
+        working-directory: apps/web
+        run: npm ci
+
+      - name: Lint
+        working-directory: apps/web
+        run: npm run lint
+
+      - name: Typecheck
+        working-directory: apps/web
+        run: npm run typecheck
+
+      - name: Run Vitest
+        working-directory: apps/web
+        run: npm test
+
+      - name: Build Next.js application
+        working-directory: apps/web
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000
+        run: npm run build
+

@@ -1,0 +1,31 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+      - id: no-commit-to-branch
+        args: [--branch, main]
+
+  - repo: local
+    hooks:
+      - id: block-env-files
+        name: Block committing .env files
+        entry: bash -c 'for file in "$@"; do if [[ "$file" =~ (^|/)\.env(\..+)?$ && ! "$file" =~ \.env\.example$ ]]; then echo "ERROR: Committing .env file ($file) is blocked."; exit 1; fi; done' --
+        language: system
+        types: [file]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.9
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.0
+    hooks:
+      - id: gitleaks
+
