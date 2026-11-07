@@ -1,5 +1,15 @@
 """Pydantic schemas package."""
 
-from app.schemas.envelope import ErrorDetail, FailureEnvelope, ResponseEnvelope, SuccessEnvelope
+from app.schemas.auth import AuthTokenResponse, LoginRequest, RegisterRequest
+from app.schemas.envelope import FailureEnvelope, ResponseEnvelope, SuccessEnvelope
+from app.schemas.user import UserResponse
 
-__all__ = ["ErrorDetail", "FailureEnvelope", "ResponseEnvelope", "SuccessEnvelope"]
+__all__ = [
+    "AuthTokenResponse",
+    "FailureEnvelope",
+    "LoginRequest",
+    "RegisterRequest",
+    "ResponseEnvelope",
+    "SuccessEnvelope",
+    "UserResponse",
+]

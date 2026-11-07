@@ -4,6 +4,50 @@ from typing import Any
 
 import structlog
 
+SENSITIVE_KEYS: frozenset[str] = frozenset(
+    {
+        "password",
+        "token",
+        "access_token",
+        "refresh_token",
+        "authorization",
+        "cookie",
+        "set-cookie",
+        "secret",
+    }
+)
+
+
+def _redact_value(val: Any) -> Any:
+    if isinstance(val, dict):
+        return {
+            k: (
+                "[REDACTED]"
+                if str(k).lower() in SENSITIVE_KEYS
+                or any(s in str(k).lower() for s in ("password", "token", "secret"))
+                else _redact_value(v)
+            )
+            for k, v in val.items()
+        }
+    if isinstance(val, list):
+        return [_redact_value(v) for v in val]
+    return val
+
+
+def redact_sensitive_keys(
+    _logger: Any, _method_name: str, event_dict: dict[str, Any]
+) -> dict[str, Any]:
+    """Redact sensitive keys from structlog event dictionaries."""
+    for key in list(event_dict.keys()):
+        lower_key = str(key).lower()
+        if lower_key in SENSITIVE_KEYS or any(
+            s in lower_key for s in ("password", "token", "secret")
+        ):
+            event_dict[key] = "[REDACTED]"
+        else:
+            event_dict[key] = _redact_value(event_dict[key])
+    return event_dict
+
 
 def setup_logging(environment: str = "development", log_level: str = "INFO") -> None:
     """Configure structured logging using structlog.
@@ -20,6 +64,7 @@ def setup_logging(environment: str = "development", log_level: str = "INFO") -> 
         structlog.processors.TimeStamper(fmt="iso"),
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
+        redact_sensitive_keys,
     ]
 
     renderer: Any
