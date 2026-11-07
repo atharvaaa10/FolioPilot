@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/card";
 import { apiClient, ApiError } from "@/lib/api";
 import { APP_NAME, APP_DESCRIPTION } from "@/lib/constants";
+import { LocalTime } from "@/components/ui/local-time";
 
 interface SystemReadinessData {
   status: string;
@@ -29,10 +30,16 @@ export default function HomePage(): React.JSX.Element {
     error,
     refetch,
     isFetching,
+    dataUpdatedAt,
+    errorUpdatedAt,
   } = useQuery<SystemReadinessData, ApiError>({
     queryKey: ["health-ready"],
     queryFn: () => apiClient<SystemReadinessData>("/api/v1/health/ready"),
   });
+
+  const lastChecked = isError
+    ? errorUpdatedAt || undefined
+    : dataUpdatedAt || undefined;
 
   return (
     <div className="container mx-auto flex flex-col items-center justify-center px-4 py-16 sm:px-8">
@@ -41,8 +48,16 @@ export default function HomePage(): React.JSX.Element {
           Welcome to <span className="text-primary">{APP_NAME}</span>
         </h1>
         <p className="text-lg text-muted-foreground">
-          {APP_DESCRIPTION}. Foundation architecture active and ready for Phase 1.
+          {APP_DESCRIPTION}. Foundation architecture and Phase 1 authentication active.
         </p>
+        <div className="flex items-center justify-center gap-4 pt-2">
+          <a href="/register">
+            <Button>Create Account</Button>
+          </a>
+          <a href="/dashboard">
+            <Button variant="outline">View Dashboard</Button>
+          </a>
+        </div>
       </div>
 
       <div className="w-full max-w-lg">
@@ -136,8 +151,8 @@ export default function HomePage(): React.JSX.Element {
           </CardContent>
 
           <CardFooter className="flex justify-between border-t border-border pt-4">
-            <span className="text-xs text-muted-foreground">
-              Last probed: {new Date().toLocaleTimeString()}
+            <span className="text-xs text-muted-foreground flex items-center gap-1">
+              Last probed: <LocalTime timestamp={lastChecked} />
             </span>
             <Button
               variant="outline"
