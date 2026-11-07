@@ -17,15 +17,17 @@ FROM base AS development
 COPY pyproject.toml uv.lock /app/
 
 # Install all dependencies including dev tools
-RUN uv sync --no-install-project
+RUN uv sync --no-install-project && sha256sum uv.lock | cut -d' ' -f1 > /app/.venv/.lock-hash
 
 # Copy project files
 COPY . /app
+RUN chmod +x /app/entrypoint.sh
 
 ENV PATH="/app/.venv/bin:$PATH"
 
 EXPOSE 8000
 
+ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
 # --- Production Builder stage ---

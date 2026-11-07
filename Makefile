@@ -1,4 +1,4 @@
-.PHONY: up down logs migrate makemigration test test-api test-web lint format typecheck shell-api psql
+.PHONY: up down logs migrate makemigration test test-api test-web lint format typecheck shell-api psql rebuild-web rebuild-python smoke
 
 # Default docker compose command
 DC = docker compose
@@ -8,6 +8,15 @@ up:
 
 down:
 	$(DC) down
+
+rebuild-web:
+	$(DC) up -d --build --no-deps -V web
+
+rebuild-python:
+	$(DC) up -d --build --no-deps -V api worker beat
+
+smoke:
+	powershell -ExecutionPolicy Bypass -File scripts/smoke.ps1
 
 logs:
 	$(DC) logs -f
@@ -35,7 +44,7 @@ format:
 	cd apps/web && npm run format
 
 typecheck:
-	cd apps/api && mypy app
+	cd apps/api && mypy app tests
 	cd apps/web && npm run typecheck
 
 shell-api:

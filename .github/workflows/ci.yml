@@ -40,6 +40,8 @@ jobs:
       ENVIRONMENT: test
       DATABASE_URL: postgresql+asyncpg://foliopilot:foliopilot@localhost:5432/foliopilot
       REDIS_URL: redis://localhost:6379/0
+      TEST_DATABASE_URL: postgresql+asyncpg://foliopilot:foliopilot@localhost:5432/foliopilot_test
+      TEST_REDIS_URL: redis://localhost:6379/1
       JWT_SECRET: test-ci-secret-key-at-least-thirty-two-chars
       JWT_ALGORITHM: HS256
       CORS_ORIGINS: '["http://localhost:3000"]'

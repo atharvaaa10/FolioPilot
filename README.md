@@ -12,6 +12,9 @@ This repository holds the Phase 0 foundational architecture upon which all futur
 - **Node.js 20+** and **npm** (for local frontend development)
 - **Make** (optional, for convenience commands)
 
+> **Windows Note on `@next/swc-wasm-nodejs`**:
+> `@next/swc-wasm-nodejs` is pinned in `apps/web/package.json` under `optionalDependencies`. On Windows hosts, native SWC binaries (`@next/swc-win32-x64-msvc`) may fail to load in certain container mounts or Windows build environments; having the exact matching WASM fallback ensures Next.js compilation reliably falls back without breaking builds or container execution.
+
 ---
 
 ## Quickstart
@@ -34,11 +37,79 @@ make migrate
 # or: docker compose exec api alembic upgrade head
 ```
 
-### 4. Access Services
+### 4. Access Services & Endpoints
 - **Frontend Web Application**: [http://localhost:3000](http://localhost:3000)
-- **Backend API Liveness**: [http://localhost:8000/api/v1/health](http://localhost:8000/api/v1/health)
-- **Backend API Readiness**: [http://localhost:8000/api/v1/health/ready](http://localhost:8000/api/v1/health/ready)
-- **API Documentation (Dev only)**: [http://localhost:8000/docs](http://localhost:8000/docs)
+  - `/login`: Investor sign in with client and server validation
+  - `/register`: New investor account registration with Argon2id hashing
+  - `/dashboard`: Protected investor dashboard (AuthGate)
+- **Backend API Endpoints**:
+  - `POST /api/v1/auth/register`: Create user account & initial refresh token family (201)
+  - `POST /api/v1/auth/login`: Authenticate credentials with timing protection (200)
+  - `POST /api/v1/auth/refresh`: Rotate token family with pessimistic row lock (200)
+  - `POST /api/v1/auth/logout`: Revoke active token family & clear cookie (200)
+  - `POST /api/v1/auth/logout-all`: Revoke all sessions across all devices for user (200)
+  - `GET /api/v1/users/me`: Return authenticated user profile (200)
+  - `GET /api/v1/health`: Lightweight liveness probe (200)
+  - `GET /api/v1/health/ready`: PostgreSQL & Redis readiness probe (200/503)
+  - `GET /docs`: Swagger OpenAPI documentation (development mode)
+
+---
+
+## Architecture & Authentication Design
+
+```mermaid
+flowchart TD
+    Browser["Next.js Web Frontend (Port 3000)"]
+    API["FastAPI Backend (Port 8000)"]
+    DB[("PostgreSQL 16 + pgvector")]
+    Redis[("Redis 7 Broker & Cache")]
+    Worker["Celery Worker"]
+    Beat["Celery Beat Scheduler"]
+
+    Browser -- "Bearer Access Token (In-Memory) + HttpOnly fp_refresh Cookie" --> API
+    API -- "AsyncPG / SQLAlchemy 2.0" --> DB
+    API -- "Rate Limiting & Lock" --> Redis
+    Worker -- "Execute Background Tasks" --> DB
+    Beat -- "Daily 03:30 IST Expired Token Purge" --> Redis
+    Worker -- "Read Task Queue" --> Redis
+```
+
+### Authentication & Token Rotation Guarantees
+- **Memory-Only Access Tokens**: 15-minute JWTs are stored strictly in memory (`apps/web/src/lib/auth-token.ts`), never in `localStorage` or `sessionStorage`, mitigating XSS credential theft.
+- **HttpOnly Refresh Cookies**: 7-day opaque tokens delivered strictly via `fp_refresh` cookie (`Path=/api/v1/auth`, `SameSite=Lax`, `HttpOnly=True`).
+- **Token Family Rotation**: Every refresh rotates the token under a PostgreSQL pessimistic lock (`with_for_update()`).
+- **Grace Window Tradeoff**: When multiple tabs trigger token refresh simultaneously, requests arriving within `REFRESH_GRACE_SECONDS` (10s) receive a new access token without rotating the cookie, avoiding multi-tab logout races. Any token reuse outside the grace window triggers immediate revocation of the entire family (`REFRESH_TOKEN_REUSED`).
+- **CSRF & CORS Safety**: All cookie-authenticated endpoints verify the `Origin` header against explicit `CORS_ORIGINS`. Startup fails fast if `*` is present with credentials enabled.
+- **Sensitive Log Redaction**: Structlog processor automatically redacts passwords, tokens, cookies, and secrets.
+
+---
+
+## Testing & Quality Gates
+
+### Test Isolation Safety Gate
+All integration tests run against isolated databases:
+- **PostgreSQL**: Must connect to a test database ending in `_test` (`foliopilot_test`). The test runner automatically provisions `foliopilot_test` and refuses execution if pointing to any database not ending in `_test`.
+- **Redis**: Must connect to database index `1` (`redis://.../1`). Only database index 1 is ever flushed during tests.
+
+### Running Test Suites
+```bash
+# Backend unit tests (runs without Docker)
+apps/api/.venv/Scripts/python -m pytest apps/api/tests/unit
+
+# Backend integration tests (requires Docker PostgreSQL & Redis)
+apps/api/.venv/Scripts/python -m pytest apps/api/tests/integration
+
+# Frontend tests (Vitest)
+npm --prefix apps/web test
+
+# Static type and style checks
+apps/api/.venv/Scripts/ruff check apps/api
+apps/api/.venv/Scripts/ruff format --check apps/api
+apps/api/.venv/Scripts/mypy --config-file apps/api/pyproject.toml apps/api/app apps/api/tests/unit
+npm --prefix apps/web run lint
+npm --prefix apps/web run typecheck
+npm --prefix apps/web run build
+```
 
 ---
 
@@ -59,6 +130,16 @@ make migrate
 | `make typecheck` | Run mypy strict on backend and TypeScript compiler on web |
 | `make shell-api` | Open a bash shell in the running API container |
 | `make psql` | Open a PostgreSQL shell connected to the database |
+| `make rebuild-web` | Rebuild web container and renew anonymous node_modules volume |
+| `make rebuild-python` | Rebuild api, worker & beat containers and renew .venv volume |
+| `make smoke` | Run health and route smoke checks across web and api services (PowerShell-only script `scripts/smoke.ps1` for local dev; not run in Linux CI) |
+
+### Dependencies Changed?
+If dependencies changed in `package.json` or `uv.lock`, run:
+- **Frontend**: `make rebuild-web` (or `docker compose up -d --build --no-deps -V web`)
+- **Backend**: `make rebuild-python` (or `docker compose up -d --build --no-deps -V api worker beat`)
+
+Both container environments also include entrypoint lock-hash guards that detect package changes and sync dependencies automatically on startup.
 
 ---
 
@@ -100,9 +181,9 @@ make migrate
 
 ## Roadmap
 
-- **Phase 0**: Architecture foundation & conventions (Current)
-- **Phase 1**: Authentication (JWT with refresh rotation)
-- **Phase 2**: AMFI Mutual Fund Master & NAV synchronization
+- **Phase 0**: Architecture foundation & conventions (Completed)
+- **Phase 1**: Authentication (JWT with refresh rotation, reuse detection, rate limiting) (Completed)
+- **Phase 2**: AMFI Mutual Fund Master & NAV synchronization (Next)
 - **Phase 3**: Portfolios, SIPs & transaction ledger
 - **Phase 4**: Statement imports (Excel & Consolidated Account Statement / CAS PDF)
 - **Phase 5**: Valuation engine (XIRR) & capital gains tax calculation

@@ -94,6 +94,7 @@ services:
     build:
       context: ./apps/web
       dockerfile: Dockerfile
+      target: development
     restart: unless-stopped
     env_file:
       - .env

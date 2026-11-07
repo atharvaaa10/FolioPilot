@@ -1,0 +1,4 @@
+# Ensure shell scripts, Dockerfiles and Makefile always use LF line endings on all platforms
+*.sh text eol=lf
+Dockerfile* text eol=lf
+Makefile text eol=lf
