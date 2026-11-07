@@ -1,7 +1,10 @@
 /**
  * Typed API Client for FolioPilot Backend Services.
- * Enforces standard response envelope parsing and error handling.
+ * Enforces standard response envelope parsing, credentials inclusion,
+ * automatic token attachment, and single-flight refresh token rotation.
  */
+
+import { clearAccessToken, getAccessToken, setAccessToken } from "./auth-token";
 
 export interface ApiErrorPayload {
   code: string;
@@ -38,18 +41,59 @@ export class ApiError extends Error {
   }
 }
 
-/**
- * Extension Point: Phase 1 JWT Token Provider.
- * Later phases will inject access tokens and handle refresh rotation here.
- */
-export async function getAccessToken(): Promise<string | null> {
-  return null;
-}
-
 const DEFAULT_BASE_URL = "http://localhost:8000";
 
 export function getBaseApiUrl(): string {
   return process.env.NEXT_PUBLIC_API_URL || DEFAULT_BASE_URL;
+}
+
+// Single-flight refresh token lock
+let refreshPromise: Promise<string | null> | null = null;
+
+/**
+ * Execute single-flight refresh against POST /api/v1/auth/refresh.
+ * Concurrent requests await the identical active promise.
+ */
+export async function requestTokenRefresh(): Promise<string | null> {
+  if (refreshPromise) {
+    return refreshPromise;
+  }
+
+  refreshPromise = (async () => {
+    try {
+      const baseUrl = getBaseApiUrl();
+      const response = await fetch(`${baseUrl}/api/v1/auth/refresh`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        clearAccessToken();
+        return null;
+      }
+
+      const payload = (await response.json()) as ApiResponse<{ access_token: string }>;
+      if (payload.success && payload.data?.access_token) {
+        const newToken = payload.data.access_token;
+        setAccessToken(newToken);
+        return newToken;
+      }
+
+      clearAccessToken();
+      return null;
+    } catch {
+      clearAccessToken();
+      return null;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
 }
 
 /**
@@ -59,6 +103,7 @@ export function getBaseApiUrl(): string {
 export async function apiClient<T>(
   endpoint: string,
   options: RequestInit = {},
+  isRetry = false,
 ): Promise<T> {
   const baseUrl = getBaseApiUrl();
   const normalizedPath = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
@@ -72,15 +117,15 @@ export async function apiClient<T>(
     headers.set("Accept", "application/json");
   }
 
-  // Hook for Phase 1 Authentication token attachment
-  const token = await getAccessToken();
-  if (token) {
+  const token = getAccessToken();
+  if (token && !headers.has("Authorization")) {
     headers.set("Authorization", `Bearer ${token}`);
   }
 
   let response: Response;
   try {
     response = await fetch(url, {
+      credentials: "include",
       ...options,
       headers,
     });
@@ -99,6 +144,34 @@ export async function apiClient<T>(
       responseJson = (await response.json()) as ApiResponse<T>;
     } catch {
       responseJson = null;
+    }
+  }
+
+  // Handle expired token on non-auth endpoints by attempting a single refresh
+  const isAuthEndpoint = normalizedPath.includes("/auth/");
+  const hasTokenExpiredError =
+    responseJson !== null &&
+    !responseJson.success &&
+    responseJson.error?.code === "TOKEN_EXPIRED";
+
+  const isTokenExpired = response.status === 401 || hasTokenExpiredError;
+
+  if (!isRetry && !isAuthEndpoint && isTokenExpired) {
+    const refreshedToken = await requestTokenRefresh();
+    if (refreshedToken) {
+      // Retry original request once with fresh token
+      return apiClient<T>(endpoint, options, true);
+    }
+
+    // Refresh failed or revoked: clear access token and redirect if in browser
+    clearAccessToken();
+    if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+      const next = encodeURIComponent(window.location.pathname + window.location.search);
+      try {
+        window.location.href = `/login?next=${next}`;
+      } catch {
+        // Suppress jsdom navigation error in unit test environment
+      }
     }
   }
 
@@ -127,3 +200,4 @@ export async function apiClient<T>(
   return (responseJson as unknown as T) || ({} as T);
 }
 
+export { clearAccessToken, getAccessToken, setAccessToken };
