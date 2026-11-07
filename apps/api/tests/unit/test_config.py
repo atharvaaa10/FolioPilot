@@ -63,3 +63,19 @@ def test_cors_origins_parsing_variants() -> None:
         "https://app.foliopilot.in",
         "https://admin.foliopilot.in",
     ]
+
+
+def test_cors_origins_wildcard_rejected() -> None:
+    """Verify Settings rejects wildcard '*' in CORS_ORIGINS due to credential security."""
+    with pytest.raises(ValidationError) as exc_info:
+        Settings(CORS_ORIGINS=["*"])
+    assert "CORS_ORIGINS cannot contain '*'" in str(exc_info.value)
+
+
+def test_create_app_rejects_wildcard_cors() -> None:
+    """Verify create_app fails fast if CORS_ORIGINS contains wildcard '*'."""
+    from app.main import create_app
+
+    bad_settings = Settings.model_construct(CORS_ORIGINS=["*"])
+    with pytest.raises(ValueError, match="CORS_ORIGINS cannot contain"):
+        create_app(bad_settings)

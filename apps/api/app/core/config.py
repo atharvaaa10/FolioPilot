@@ -21,10 +21,19 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     DATABASE_URL: str = "postgresql+asyncpg://foliopilot:foliopilot@localhost:5432/foliopilot"
     REDIS_URL: str = "redis://localhost:6379/0"
+    TEST_DATABASE_URL: str = (
+        "postgresql+asyncpg://foliopilot:foliopilot@localhost:5432/foliopilot_test"
+    )
+    TEST_REDIS_URL: str = "redis://localhost:6379/1"
     CORS_ORIGINS: list[str] = ["http://localhost:3000"]
     JWT_SECRET: str = DEV_DEFAULT_JWT_SECRET
     JWT_ALGORITHM: str = "HS256"
     LOG_LEVEL: str = "INFO"
+    ACCESS_TOKEN_TTL_MINUTES: int = 15
+    REFRESH_TOKEN_TTL_DAYS: int = 7
+    REFRESH_GRACE_SECONDS: int = 10
+    REFRESH_COOKIE_NAME: str = "fp_refresh"
+    TRUST_PROXY_HEADERS: bool = False
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
@@ -45,11 +54,19 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_production_security(self) -> Self:
-        """Fail fast outside dev if JWT_SECRET is missing or using dev fallback."""
+        """Fail fast if configuration is insecure."""
+        if "*" in self.CORS_ORIGINS:
+            raise ValueError(
+                "CORS_ORIGINS cannot contain '*' because credentials require explicit origins"
+            )
         if self.ENVIRONMENT != "development":
-            if not self.JWT_SECRET or self.JWT_SECRET == DEV_DEFAULT_JWT_SECRET:
+            if (
+                not self.JWT_SECRET
+                or self.JWT_SECRET == DEV_DEFAULT_JWT_SECRET
+                or len(self.JWT_SECRET) < 32
+            ):
                 raise ValueError(
-                    "JWT_SECRET must be explicitly set to a secure secret "
+                    "JWT_SECRET must be explicitly set to a secure secret of >= 32 chars "
                     f"outside development mode (current ENVIRONMENT={self.ENVIRONMENT!r})"
                 )
         return self

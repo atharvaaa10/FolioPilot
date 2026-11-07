@@ -46,22 +46,51 @@ class ValidationError(AppError):
 class UnauthorizedError(AppError):
     """Authentication required or failed (HTTP 401)."""
 
-    def __init__(self, message: str = "Authentication required", details: Any = None) -> None:
-        super().__init__(message=message, code="UNAUTHORIZED", status_code=401, details=details)
+    def __init__(
+        self,
+        message: str = "Authentication required",
+        code: str = "UNAUTHORIZED",
+        details: Any = None,
+    ) -> None:
+        super().__init__(message=message, code=code, status_code=401, details=details)
 
 
 class ForbiddenError(AppError):
     """Authorization permission denied (HTTP 403)."""
 
-    def __init__(self, message: str = "Permission denied", details: Any = None) -> None:
-        super().__init__(message=message, code="FORBIDDEN", status_code=403, details=details)
+    def __init__(
+        self,
+        message: str = "Permission denied",
+        code: str = "FORBIDDEN",
+        details: Any = None,
+    ) -> None:
+        super().__init__(message=message, code=code, status_code=403, details=details)
 
 
 class ConflictError(AppError):
     """State conflict, such as duplicate unique key (HTTP 409)."""
 
-    def __init__(self, message: str = "Resource conflict", details: Any = None) -> None:
-        super().__init__(message=message, code="CONFLICT", status_code=409, details=details)
+    def __init__(
+        self,
+        message: str = "Resource conflict",
+        code: str = "CONFLICT",
+        details: Any = None,
+    ) -> None:
+        super().__init__(message=message, code=code, status_code=409, details=details)
+
+
+class RateLimitedError(AppError):
+    """Rate limit exceeded (HTTP 429)."""
+
+    def __init__(
+        self,
+        message: str = "Rate limit exceeded. Please try again later.",
+        code: str = "RATE_LIMITED",
+        details: Any = None,
+        retry_after: int | None = None,
+    ) -> None:
+        super().__init__(message=message, code=code, status_code=429, details=details)
+        self.retry_after = retry_after
 
 
 def register_error_handlers(app: FastAPI) -> None:
@@ -69,8 +98,12 @@ def register_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(AppError)
     async def handle_app_error(_request: Request, exc: AppError) -> JSONResponse:
+        headers: dict[str, str] = {}
+        if isinstance(exc, RateLimitedError) and exc.retry_after is not None:
+            headers["Retry-After"] = str(exc.retry_after)
         return JSONResponse(
             status_code=exc.status_code,
+            headers=headers if headers else None,
             content={
                 "success": False,
                 "error": {
@@ -104,6 +137,9 @@ def register_error_handlers(app: FastAPI) -> None:
             401: "UNAUTHORIZED",
             403: "FORBIDDEN",
             405: "METHOD_NOT_ALLOWED",
+            409: "CONFLICT",
+            422: "VALIDATION_ERROR",
+            429: "RATE_LIMITED",
             503: "SERVICE_UNAVAILABLE",
         }
         code = code_map.get(exc.status_code, f"HTTP_{exc.status_code}")
