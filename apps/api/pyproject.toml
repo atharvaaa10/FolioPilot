@@ -12,8 +12,11 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.0.38",
     "asyncpg>=0.30.0",
     "alembic>=1.14.0",
-    "redis>=5.0.0",
-    "celery>=5.3.6",
+    "redis>=8.1.0",
+    "celery>=5.7.0",
+    "argon2-cffi>=25.1.0",
+    "pyjwt>=2.15.0",
+    "email-validator>=2.2.0",
     "structlog>=24.0.0",
     "httpx>=0.28.0",
 ]
@@ -61,6 +64,7 @@ warn_unused_ignores = true
 
 [[tool.mypy.overrides]]
 module = [
+    "celery",
     "celery.*",
 ]
 ignore_missing_imports = true
