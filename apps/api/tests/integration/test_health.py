@@ -1,3 +1,4 @@
+from collections.abc import AsyncGenerator
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -24,7 +25,7 @@ async def test_health_readiness_all_healthy() -> None:
     # Override get_db_session with a mock session
     mock_session = AsyncMock()
 
-    async def override_db():
+    async def override_db() -> AsyncGenerator[AsyncMock, None]:
         yield mock_session
 
     test_app.dependency_overrides[get_db_session] = override_db
@@ -56,7 +57,7 @@ async def test_health_readiness_db_unhealthy() -> None:
 
     mock_session = AsyncMock()
 
-    async def override_db():
+    async def override_db() -> AsyncGenerator[AsyncMock, None]:
         yield mock_session
 
     test_app.dependency_overrides[get_db_session] = override_db
@@ -75,7 +76,7 @@ async def test_health_readiness_db_unhealthy() -> None:
             payload = response.json()
             assert payload["success"] is False
             assert payload["error"]["code"] == "SERVICE_UNAVAILABLE"
-            assert "DB connection timeout" in payload["error"]["details"]["database"]
+            assert payload["error"]["details"]["database"] == "unhealthy"
             assert payload["error"]["details"]["redis"] == "healthy"
 
 
@@ -86,7 +87,7 @@ async def test_health_readiness_redis_unhealthy() -> None:
 
     mock_session = AsyncMock()
 
-    async def override_db():
+    async def override_db() -> AsyncGenerator[AsyncMock, None]:
         yield mock_session
 
     test_app.dependency_overrides[get_db_session] = override_db

@@ -1,5 +1,5 @@
 import pytest
-from fastapi import APIRouter
+from fastapi import APIRouter, FastAPI
 from httpx import ASGITransport, AsyncClient
 from pydantic import BaseModel, Field
 
@@ -32,14 +32,14 @@ async def trigger_validation() -> None:
 
 
 @pytest.fixture
-def app_with_test_routes():
+def app_with_test_routes() -> FastAPI:
     app = create_app()
     app.include_router(dummy_router)
     return app
 
 
 @pytest.mark.asyncio
-async def test_success_envelope(app_with_test_routes) -> None:
+async def test_success_envelope(app_with_test_routes: FastAPI) -> None:
     transport = ASGITransport(app=app_with_test_routes)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post("/test/items", json={"name": "Equity Fund", "amount": 5000})
@@ -51,7 +51,7 @@ async def test_success_envelope(app_with_test_routes) -> None:
 
 
 @pytest.mark.asyncio
-async def test_request_validation_error_envelope(app_with_test_routes) -> None:
+async def test_request_validation_error_envelope(app_with_test_routes: FastAPI) -> None:
     transport = ASGITransport(app=app_with_test_routes)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         # Invalid payload: name too short, amount negative
@@ -67,7 +67,7 @@ async def test_request_validation_error_envelope(app_with_test_routes) -> None:
 
 
 @pytest.mark.asyncio
-async def test_custom_app_error_envelopes(app_with_test_routes) -> None:
+async def test_custom_app_error_envelopes(app_with_test_routes: FastAPI) -> None:
     transport = ASGITransport(app=app_with_test_routes)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         # Not found
