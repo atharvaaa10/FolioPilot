@@ -1,16 +1,10 @@
-"""Celery Beat schedule configuration for periodic background jobs.
+"""Celery Beat schedule configuration for periodic background jobs."""
 
-Periodic tasks (e.g., daily AMFI NAV sync, weekly portfolio rebalance checks)
-will be registered here in later phases.
+from celery.schedules import crontab
 
-Example future schedule:
-    from celery.schedules import crontab
-    CELERY_BEAT_SCHEDULE = {
-        "sync-amfi-nav-daily": {
-            "task": "sync_amfi_nav",
-            "schedule": crontab(hour=18, minute=0), # 23:30 IST in UTC
-        },
-    }
-"""
-
-CELERY_BEAT_SCHEDULE: dict[str, dict[str, object]] = {}
+CELERY_BEAT_SCHEDULE: dict[str, dict[str, object]] = {
+    "purge-expired-refresh-tokens-daily": {
+        "task": "purge_expired_refresh_tokens",
+        "schedule": crontab(hour=22, minute=0),  # 03:30 Asia/Kolkata (IST) in UTC
+    },
+}
