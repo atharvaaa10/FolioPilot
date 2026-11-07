@@ -19,6 +19,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan managing startup configuration and graceful resource shutdown."""
     settings = get_settings()
     setup_logging(environment=settings.ENVIRONMENT, log_level=settings.LOG_LEVEL)
+    if "*" in settings.CORS_ORIGINS:
+        raise ValueError("CORS_ORIGINS cannot contain '*' when allow_credentials is True")
     logger.info("app_starting", app_name=settings.APP_NAME, environment=settings.ENVIRONMENT)
 
     yield
@@ -31,6 +33,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 def create_app(settings: Settings | None = None) -> FastAPI:
     """FastAPI application factory."""
     active_settings = settings or get_settings()
+
+    if "*" in active_settings.CORS_ORIGINS:
+        raise ValueError("CORS_ORIGINS cannot contain '*' when allow_credentials is True")
 
     is_dev = active_settings.ENVIRONMENT == "development"
 
@@ -46,13 +51,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Middleware: Request ID and structlog tracing (outermost execution)
     app.add_middleware(RequestIDAndLoggingMiddleware)
 
-    # Middleware: CORS
+    # Middleware: CORS with strict credentials and explicit origins
     app.add_middleware(
         CORSMiddleware,
         allow_origins=active_settings.CORS_ORIGINS,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+        expose_headers=["Retry-After", "X-Request-ID"],
     )
 
     # Error Handlers

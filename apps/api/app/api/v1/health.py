@@ -31,7 +31,7 @@ async def readiness_check(
             db_status = "unhealthy"
     except Exception as exc:
         logger.warning("readiness_db_check_failed", error=str(exc))
-        db_status = f"unhealthy: {exc}"
+        db_status = "unhealthy"
 
     redis_status = "healthy"
     try:
@@ -39,7 +39,7 @@ async def readiness_check(
             redis_status = "unhealthy"
     except Exception as exc:
         logger.warning("readiness_redis_check_failed", error=str(exc))
-        redis_status = f"unhealthy: {exc}"
+        redis_status = "unhealthy"
 
     is_ready = (db_status == "healthy") and (redis_status == "healthy")
 
