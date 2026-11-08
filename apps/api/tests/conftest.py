@@ -110,14 +110,18 @@ async def test_session(test_infra: None) -> AsyncGenerator[AsyncSession, None]:
 
     # Truncate tables cleanly before each test to guarantee fresh state
     async with _test_engine.begin() as conn:
-        await conn.execute(text("TRUNCATE TABLE refresh_tokens, users CASCADE;"))
+        await conn.execute(
+            text("TRUNCATE TABLE nav_sync_runs, nav_history, funds, refresh_tokens, users CASCADE;")
+        )
 
     async with _test_session_factory() as session:
         yield session
 
     # Truncate tables cleanly between tests
     async with _test_engine.begin() as conn:
-        await conn.execute(text("TRUNCATE TABLE refresh_tokens, users CASCADE;"))
+        await conn.execute(
+            text("TRUNCATE TABLE nav_sync_runs, nav_history, funds, refresh_tokens, users CASCADE;")
+        )
 
 
 @pytest_asyncio.fixture
