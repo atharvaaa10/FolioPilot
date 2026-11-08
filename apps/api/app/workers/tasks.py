@@ -3,16 +3,30 @@
 import asyncio
 import sys
 from datetime import UTC, datetime, timedelta
+from typing import Any
+from uuid import UUID
 
+from celery import Task
+from redis.asyncio import ConnectionPool, Redis
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
+from app.clients.amfi import AmfiClient, AmfiFetchError
+from app.clients.mfapi import MfapiClient, MfapiFetchError
 from app.core.config import get_settings
 from app.core.logging import get_logger
+from app.core.redis_lock import acquire_lock, release_lock
+from app.repositories.funds import FundRepository
 from app.repositories.refresh_tokens import RefreshTokenRepository
+from app.repositories.sync_runs import SyncRunRepository
+from app.services.fund_sync import sync_amfi_funds_and_nav
+from app.services.nav_backfill import backfill_fund_nav_history
 from app.workers.celery_app import celery_app
 
 logger = get_logger("workers.tasks")
+
+LOCK_KEY_AMFI_SYNC = "lock:sync_amfi_nav"
+LOCK_TIMEOUT_AMFI_SYNC = 900  # 15 minutes
 
 
 @celery_app.task(name="ping")  # type: ignore[untyped-decorator]
@@ -21,17 +35,30 @@ def ping() -> str:
     return "pong"
 
 
+def _get_target_db_url(db_url: str | None = None) -> str:
+    settings = get_settings()
+    if db_url:
+        return db_url
+    if "pytest" in sys.modules or settings.ENVIRONMENT == "test":
+        return settings.TEST_DATABASE_URL
+    return settings.DATABASE_URL
+
+
+def _get_target_redis_url(redis_url: str | None = None) -> str:
+    settings = get_settings()
+    if redis_url:
+        return redis_url
+    if "pytest" in sys.modules or settings.ENVIRONMENT == "test":
+        return settings.TEST_REDIS_URL
+    return settings.REDIS_URL
+
+
 async def _async_purge_expired_tokens(
     retention_days: int = 7,
     db_url: str | None = None,
 ) -> int:
     """Execute asynchronous database purge of old expired refresh tokens with dedicated engine."""
-    settings = get_settings()
-    target_url = db_url or (
-        settings.TEST_DATABASE_URL
-        if ("pytest" in sys.modules or settings.ENVIRONMENT == "test")
-        else settings.DATABASE_URL
-    )
+    target_url = _get_target_db_url(db_url)
     engine = create_async_engine(target_url, poolclass=NullPool)
     session_factory = async_sessionmaker(
         bind=engine,
@@ -57,3 +84,158 @@ def purge_expired_refresh_tokens(
     count = asyncio.run(_async_purge_expired_tokens(retention_days=retention_days, db_url=db_url))
     logger.info("purged_expired_refresh_tokens", deleted_count=count)
     return count
+
+
+async def _async_sync_amfi_nav(
+    db_url: str | None = None,
+    redis_url: str | None = None,
+    amfi_client: AmfiClient | None = None,
+) -> dict[str, Any]:
+    """Execute AMFI NAV synchronization with distributed locking and standalone session."""
+    target_db = _get_target_db_url(db_url)
+    target_redis = _get_target_redis_url(redis_url)
+
+    engine = create_async_engine(target_db, poolclass=NullPool)
+    session_factory = async_sessionmaker(
+        bind=engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+
+    redis_pool = ConnectionPool.from_url(
+        target_redis,
+        encoding="utf-8",
+        decode_responses=True,
+    )
+    redis_client = Redis(connection_pool=redis_pool)
+
+    owner_token: str | None = None
+    try:
+        owner_token = await acquire_lock(
+            redis_client,
+            LOCK_KEY_AMFI_SYNC,
+            timeout_seconds=LOCK_TIMEOUT_AMFI_SYNC,
+        )
+
+        if owner_token is None:
+            # Another sync is actively in progress: exit as skipped and record run
+            logger.info("AMFI sync skipped: lock held by another worker")
+            async with session_factory() as session:
+                run = await SyncRunRepository.create_run(
+                    session,
+                    source="amfi_navall",
+                )
+                await SyncRunRepository.finish_run(
+                    session,
+                    run=run,
+                    status="skipped",
+                    error_summary="Concurrent sync in progress; lock held.",
+                )
+                await session.commit()
+            return {"status": "skipped", "reason": "lock_held"}
+
+        async with session_factory() as session:
+            run = await sync_amfi_funds_and_nav(
+                session,
+                amfi_client=amfi_client,
+            )
+            return {
+                "status": run.status,
+                "schemes_parsed": run.schemes_parsed,
+                "funds_created": run.funds_created,
+                "funds_updated": run.funds_updated,
+                "nav_rows_written": run.nav_rows_written,
+                "error_summary": run.error_summary,
+            }
+    finally:
+        if owner_token is not None:
+            await release_lock(redis_client, LOCK_KEY_AMFI_SYNC, owner_token)
+        await redis_client.aclose()
+        await redis_pool.disconnect()
+        await engine.dispose()
+
+
+@celery_app.task(  # type: ignore[untyped-decorator]
+    name="sync_amfi_nav",
+    bind=True,
+    max_retries=3,
+    default_retry_delay=60,
+)
+def sync_amfi_nav(
+    self: Task,
+    db_url: str | None = None,
+    redis_url: str | None = None,
+) -> dict[str, Any]:
+    """Celery task to run daily AMFI NAV sync with retries on network failures."""
+    try:
+        return asyncio.run(_async_sync_amfi_nav(db_url=db_url, redis_url=redis_url))
+    except AmfiFetchError as exc:
+        logger.warning(
+            "AMFI fetch error during celery task execution; scheduling retry",
+            retry_count=self.request.retries,
+            error=str(exc),
+        )
+        raise self.retry(exc=exc) from exc
+
+
+async def _async_backfill_nav_history(
+    fund_id_str: str,
+    db_url: str | None = None,
+    mfapi_client: MfapiClient | None = None,
+) -> dict[str, Any]:
+    """Execute historical NAV backfill for a single fund."""
+    target_db = _get_target_db_url(db_url)
+    engine = create_async_engine(target_db, poolclass=NullPool)
+    session_factory = async_sessionmaker(
+        bind=engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+
+    try:
+        fund_id = UUID(fund_id_str)
+    except ValueError:
+        return {"status": "failed", "error": f"Invalid UUID: {fund_id_str}"}
+
+    try:
+        async with session_factory() as session:
+            fund = await FundRepository.get_by_id(session, fund_id)
+            if fund is None:
+                logger.error("Fund not found for backfill", fund_id=fund_id_str)
+                return {"status": "failed", "error": "Fund not found"}
+
+            run = await backfill_fund_nav_history(
+                session,
+                fund=fund,
+                mfapi_client=mfapi_client,
+            )
+            return {
+                "status": run.status,
+                "nav_rows_written": run.nav_rows_written,
+                "error_summary": run.error_summary,
+            }
+    finally:
+        await engine.dispose()
+
+
+@celery_app.task(  # type: ignore[untyped-decorator]
+    name="backfill_nav_history",
+    bind=True,
+    max_retries=3,
+    default_retry_delay=30,
+)
+def backfill_nav_history(
+    self: Task,
+    fund_id_str: str,
+    db_url: str | None = None,
+) -> dict[str, Any]:
+    """Celery task to backfill historical NAV points for a tracked fund."""
+    try:
+        return asyncio.run(_async_backfill_nav_history(fund_id_str=fund_id_str, db_url=db_url))
+    except MfapiFetchError as exc:
+        logger.warning(
+            "mfapi fetch error during backfill task; scheduling retry",
+            retry_count=self.request.retries,
+            error=str(exc),
+        )
+        raise self.retry(exc=exc) from exc
