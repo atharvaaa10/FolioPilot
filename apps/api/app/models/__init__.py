@@ -1,11 +1,17 @@
 """SQLAlchemy models package."""
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from app.models.fund import Fund
+from app.models.nav_history import NavHistory
 from app.models.refresh_token import RefreshToken
+from app.models.sync_run import NavSyncRun
 from app.models.user import User
 
 __all__ = [
     "Base",
+    "Fund",
+    "NavHistory",
+    "NavSyncRun",
     "RefreshToken",
     "TimestampMixin",
     "UUIDPrimaryKeyMixin",
