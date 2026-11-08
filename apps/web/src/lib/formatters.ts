@@ -19,6 +19,60 @@ export function formatNav(nav: number | string | null | undefined): string {
   })}`;
 }
 
+export function formatCurrency(amount: number | string | null | undefined): string {
+  if (amount === null || amount === undefined || amount === "") {
+    return "₹0.00";
+  }
+  const num = typeof amount === "number" ? amount : parseFloat(amount);
+  if (Number.isNaN(num)) {
+    return "₹0.00";
+  }
+  return `₹${num.toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+export function formatUnits(units: number | string | null | undefined): string {
+  if (units === null || units === undefined || units === "") {
+    return "0.0000";
+  }
+  const num = typeof units === "number" ? units : parseFloat(units);
+  if (Number.isNaN(num)) {
+    return "0.0000";
+  }
+  return num.toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
+  });
+}
+
+export function formatGainLoss(val: number | string | null | undefined): {
+  formatted: string;
+  isPositive: boolean;
+  isNegative: boolean;
+} {
+  if (val === null || val === undefined || val === "") {
+    return { formatted: "₹0.00", isPositive: false, isNegative: false };
+  }
+  const num = typeof val === "number" ? val : parseFloat(val);
+  if (Number.isNaN(num) || num === 0) {
+    return { formatted: "₹0.00", isPositive: false, isNegative: false };
+  }
+  const isPositive = num > 0;
+  const isNegative = num < 0;
+  const prefix = isPositive ? "+₹" : isNegative ? "-₹" : "₹";
+  const absNum = Math.abs(num);
+  return {
+    formatted: `${prefix}${absNum.toLocaleString("en-IN", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`,
+    isPositive,
+    isNegative,
+  };
+}
+
 export function formatDateString(dateStr: string | null | undefined): string {
   if (!dateStr) {
     return "—";
@@ -132,4 +186,9 @@ export function getOptionBadge(option: string): BadgeStyle {
           "bg-zinc-500/10 text-zinc-500 dark:text-zinc-400 border-zinc-500/20",
       };
   }
+}
+
+export function getTodayIsoDate(): string {
+  const d = new Date();
+  return d.toISOString().split("T")[0] || "";
 }

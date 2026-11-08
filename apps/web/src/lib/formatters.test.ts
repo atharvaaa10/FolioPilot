@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  formatCurrency,
   formatDateString,
+  formatGainLoss,
   formatNav,
+  formatUnits,
   getAssetClassBadge,
   getOptionBadge,
   getPlanBadge,
@@ -51,6 +54,33 @@ describe("formatters utilities", () => {
     expect(getOptionBadge("growth").label).toBe("Growth");
     expect(getOptionBadge("idcw").label).toBe("IDCW");
     expect(getOptionBadge("unknown").label).toBe("Unknown");
+  });
+
+  it("formatCurrency formats numbers into INR currency with 2 decimals", () => {
+    expect(formatCurrency(1234567.89)).toBe("₹12,34,567.89");
+    expect(formatCurrency("5000")).toBe("₹5,000.00");
+    expect(formatCurrency(null)).toBe("₹0.00");
+  });
+
+  it("formatUnits formats units with up to 4 decimal places", () => {
+    expect(formatUnits(1234.5678)).toBe("1,234.5678");
+    expect(formatUnits("100")).toBe("100.00");
+    expect(formatUnits(null)).toBe("0.0000");
+  });
+
+  it("formatGainLoss handles positive, negative, and zero values", () => {
+    const pos = formatGainLoss("1500.50");
+    expect(pos.formatted).toBe("+₹1,500.50");
+    expect(pos.isPositive).toBe(true);
+
+    const neg = formatGainLoss(-500.25);
+    expect(neg.formatted).toBe("-₹500.25");
+    expect(neg.isNegative).toBe(true);
+
+    const zero = formatGainLoss("0");
+    expect(zero.formatted).toBe("₹0.00");
+    expect(zero.isPositive).toBe(false);
+    expect(zero.isNegative).toBe(false);
   });
 });
 

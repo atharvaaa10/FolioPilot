@@ -7,6 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
+    from app.models.portfolio import Portfolio
     from app.models.refresh_token import RefreshToken
 
 
@@ -24,6 +25,12 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     refresh_tokens: Mapped[list["RefreshToken"]] = relationship(
         "RefreshToken",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    portfolios: Mapped[list["Portfolio"]] = relationship(
+        "Portfolio",
         back_populates="user",
         cascade="all, delete-orphan",
         passive_deletes=True,

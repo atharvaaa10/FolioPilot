@@ -44,6 +44,8 @@ make migrate
   - `/dashboard`: Protected investor dashboard (AuthGate)
   - `/funds`: Mutual fund directory with debounced search, filters, and freshness status
   - `/funds/[schemeCode]`: Fund detail view with interactive NAV history chart and track toggle
+  - `/portfolios`: Portfolio list view, create portfolio modal, and overview cards
+  - `/portfolios/[id]`: Portfolio detail view with target allocations editor, holdings table, and transaction ledger
 - **Backend API Endpoints**:
   - `POST /api/v1/auth/register`: Create user account & initial refresh token family (201)
   - `POST /api/v1/auth/login`: Authenticate credentials with timing protection (200)
@@ -56,6 +58,15 @@ make migrate
   - `GET /api/v1/funds/{scheme_code}/nav`: Return historical daily NAV timeseries for tracked fund (200)
   - `POST /api/v1/funds/{scheme_code}/track`: Mark fund as tracked and enqueue background backfill (202)
   - `GET /api/v1/nav/status`: Status of latest AMFI NAV ingestion and freshness indicator (200)
+  - `GET /api/v1/portfolios`: List portfolios belonging to authenticated user (200)
+  - `POST /api/v1/portfolios`: Create new portfolio (max 20 per user) (201)
+  - `GET /api/v1/portfolios/{id}`: Get portfolio detail with targets, derived positions, and summary metrics (200)
+  - `PUT /api/v1/portfolios/{id}`: Update portfolio name and description (200)
+  - `DELETE /api/v1/portfolios/{id}`: Delete portfolio and cascade its ledger (204)
+  - `PUT /api/v1/portfolios/{id}/targets`: Configure asset class target percentages (sum exactly 100.00%) (200)
+  - `GET /api/v1/portfolios/{id}/transactions`: List chronological transactions in ledger (200)
+  - `POST /api/v1/portfolios/{id}/transactions`: Record transaction with any-two-of-three derivation & oversell check (201)
+  - `DELETE /api/v1/portfolios/{id}/transactions/{txn_id}`: Delete transaction with oversell validation under row lock (204)
   - `GET /api/v1/health`: Lightweight liveness probe (200)
   - `GET /api/v1/health/ready`: PostgreSQL & Redis readiness probe (200/503)
   - `GET /docs`: Swagger OpenAPI documentation (development mode)

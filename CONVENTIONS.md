@@ -114,5 +114,35 @@ All API responses must strictly follow the standard envelope:
 - **Historical Backfill**:
   - Backfilling historical NAV uses `mfapi.in` with a 1-second polite rate limit, idempotently upserting into `nav_history`.
 
+## 12. Portfolio Ledger & Derived Positions Architecture
+- **Ledger as Source of Truth**:
+  - The `transactions` table is the immutable, append-only source of truth.
+  - Positions, cost basis, invested capital, current valuation, and realized/unrealized gains are **never** stored as mutable columns in separate tables; all are derived deterministically on read by in-memory chronological replay. Full architectural details in [docs/ledger.md](docs/ledger.md).
+- **Deterministic Ordering Key**:
+  - Transactions for a scheme are ordered by `(txn_date ASC, type_rank ASC, created_at ASC, id ASC)`.
+  - Intraday precedence: `BUY` (`type_rank=0`) evaluates before `SELL` (`type_rank=1`) on the same date, avoiding false oversell rejections on intraday trades.
+- **Strict Positive Sign Convention**:
+  - `units > 0`, `nav > 0`, and `amount > 0` are mandatory on both `BUY` and `SELL` transactions. Redemptions are denoted solely by `txn_type = "SELL"`, never negative numbers.
+- **Decimals as Strings**:
+  - Scales: `units` numeric(18, 4), `nav` numeric(18, 8), `amount` numeric(18, 2), `target_pct` numeric(5, 2).
+  - All decimal amounts in API payloads are serialized as strings. The frontend parses them using `decimal.js` for exact arithmetic ($33.33 + 33.33 + 33.34 = 100.00$).
+- **Ownership 404 Rule**:
+  - Looking up, updating, or deleting another user's portfolio or transaction returns `HTTP 404 NOT_FOUND` (`PORTFOLIO_NOT_FOUND` / `TRANSACTION_NOT_FOUND`), never `HTTP 403`, eliminating resource enumeration.
+- **Portfolio-Row Lock for Ledger Mutations**:
+  - Transaction mutations begin a transaction and acquire a row-level lock on the parent portfolio (`SELECT id FROM portfolios WHERE id = ... FOR UPDATE`), ensuring serialized ledger validation and preventing concurrent oversell races.
+- **Average Cost Method (FIFO in Future Phase)**:
+  - Positions are derived using Weighted Average Cost Basis (`units`, `avg_cost_nav`, `total_invested`, `realized_gain`). FIFO tax lot matching is reserved for a future phase.
+- **New Error Codes**:
+  - `PORTFOLIO_LIMIT_EXCEEDED` (409): User portfolio count exceeds `MAX_PORTFOLIOS_PER_USER` (20).
+  - `PORTFOLIO_NAME_CONFLICT` (409): Duplicate portfolio name for user.
+  - `PORTFOLIO_NOT_FOUND` (404): Portfolio does not exist or belongs to another user.
+  - `TRANSACTION_NOT_FOUND` (404): Transaction does not exist or belongs to another user.
+  - `TRANSACTION_LIMIT_EXCEEDED` (409): Transactions in portfolio exceed `MAX_TRANSACTIONS_PER_PORTFOLIO` (10,000).
+  - `TARGETS_INVALID` (422): Target allocations exceed 5 rows, duplicate classes, or sum != 100.00%.
+  - `TRANSACTION_AMOUNTS_INVALID` (422): Under-specified or mismatch exceeds tolerance ($|u \times n - a| > \max(1.00, 0.002 \times a)$).
+  - `TRANSACTION_DATE_INVALID` (422): Date < 1990-01-01 or in the future.
+  - `LEDGER_OVERSELL_REJECTED` (409): Cumulative units would drop below zero at or after transaction date.
+
+
 
 

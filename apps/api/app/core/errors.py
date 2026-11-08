@@ -105,6 +105,98 @@ class RateLimitedError(AppError):
         self.retry_after = retry_after
 
 
+# --- Portfolio & Ledger Domain Errors (Phase 3A) ---
+
+
+class PortfolioNotFoundError(NotFoundError):
+    """Portfolio not found for current user (HTTP 404)."""
+
+    def __init__(self, message: str = "Portfolio not found", details: Any = None) -> None:
+        super().__init__(message=message, details=details)
+        self.code = "PORTFOLIO_NOT_FOUND"
+
+
+class PortfolioNameTakenError(ConflictError):
+    """Portfolio name already exists for this user (HTTP 409)."""
+
+    def __init__(
+        self, message: str = "A portfolio with this name already exists", details: Any = None
+    ) -> None:
+        super().__init__(message=message, code="PORTFOLIO_NAME_TAKEN", details=details)
+
+
+class PortfolioLimitReachedError(ValidationError):
+    """User has reached the maximum allowed portfolios (HTTP 422)."""
+
+    def __init__(
+        self, message: str = "Maximum number of portfolios reached", details: Any = None
+    ) -> None:
+        super().__init__(message=message, details=details)
+        self.code = "PORTFOLIO_LIMIT_REACHED"
+
+
+class TargetsInvalidError(ValidationError):
+    """Target asset allocation sum is not 100.00% or contains invalid data (HTTP 422)."""
+
+    def __init__(
+        self, message: str = "Target allocations are invalid", details: Any = None
+    ) -> None:
+        super().__init__(message=message, details=details)
+        self.code = "TARGETS_INVALID"
+
+
+class TransactionNotFoundError(NotFoundError):
+    """Transaction not found in portfolio (HTTP 404)."""
+
+    def __init__(self, message: str = "Transaction not found", details: Any = None) -> None:
+        super().__init__(message=message, details=details)
+        self.code = "TRANSACTION_NOT_FOUND"
+
+
+class InsufficientUnitsError(ValidationError):
+    """Selling more units than available at the transaction date (HTTP 422)."""
+
+    def __init__(
+        self, message: str = "Insufficient units available to sell", details: Any = None
+    ) -> None:
+        super().__init__(message=message, details=details)
+        self.code = "INSUFFICIENT_UNITS"
+
+
+class LedgerInconsistentError(ValidationError):
+    """Ledger mutation violates historical consistency or constraints (HTTP 422)."""
+
+    def __init__(
+        self, message: str = "Transaction violates ledger consistency", details: Any = None
+    ) -> None:
+        super().__init__(message=message, details=details)
+        self.code = "LEDGER_INCONSISTENT"
+
+
+class AmountMismatchError(ValidationError):
+    """Provided amount differs from units * NAV beyond allowable tolerance (HTTP 422)."""
+
+    def __init__(
+        self,
+        message: str = "Provided amount does not match units * nav within tolerance",
+        details: Any = None,
+    ) -> None:
+        super().__init__(message=message, details=details)
+        self.code = "AMOUNT_MISMATCH"
+
+
+class TransactionLimitReachedError(ValidationError):
+    """Maximum number of transactions reached for portfolio (HTTP 422)."""
+
+    def __init__(
+        self,
+        message: str = "Maximum number of transactions reached for this portfolio",
+        details: Any = None,
+    ) -> None:
+        super().__init__(message=message, details=details)
+        self.code = "TRANSACTION_LIMIT_REACHED"
+
+
 def register_error_handlers(app: FastAPI) -> None:
     """Register custom exception handlers on the FastAPI application."""
 
