@@ -36,6 +36,18 @@ class NotFoundError(AppError):
         super().__init__(message=message, code="NOT_FOUND", status_code=404, details=details)
 
 
+class FundNotFoundError(AppError):
+    """Fund with specified scheme_code not found (HTTP 404)."""
+
+    def __init__(self, message: str = "Fund not found", details: Any = None) -> None:
+        super().__init__(
+            message=message,
+            code="FUND_NOT_FOUND",
+            status_code=404,
+            details=details,
+        )
+
+
 class ValidationError(AppError):
     """Business rule or input validation error (HTTP 422)."""
 

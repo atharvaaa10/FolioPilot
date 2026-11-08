@@ -35,6 +35,15 @@ class Settings(BaseSettings):
     REFRESH_COOKIE_NAME: str = "fp_refresh"
     TRUST_PROXY_HEADERS: bool = False
 
+    # AMFI & MFAPI Data Sources
+    AMFI_NAV_URL: str = "https://www.amfiindia.com/spages/NAVAll.txt"
+    MFAPI_BASE_URL: str = "https://api.mfapi.in"
+    FUND_SYNC_MIN_SCHEMES: int = 5000
+    FUND_INACTIVE_AFTER_DAYS: int = 30
+    HTTP_TIMEOUT_SECONDS: float = 30.0
+    HTTP_MAX_RETRIES: int = 3
+    FUND_SEARCH_RATE_LIMIT_PER_MIN: int = 60
+
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def parse_cors_origins(cls, value: object) -> list[str]:
