@@ -1,10 +1,14 @@
 """Integration tests for Portfolio management, limits, ownership 404s, and target allocations."""
 
+from datetime import UTC, datetime
+from typing import Any
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.constants import MAX_PORTFOLIOS_PER_USER
+from app.models.fund import Fund
 
 
 async def _get_auth_headers(
@@ -105,13 +109,13 @@ async def test_portfolio_limit_enforced(client: AsyncClient, test_session: Async
         )
         assert r.status_code == 201
 
-    # Attempting to create the 21st portfolio fails with 422 PORTFOLIO_LIMIT_REACHED
+    # Attempting to create the 21st portfolio fails with 409 PORTFOLIO_LIMIT_REACHED
     r_exceed = await client.post(
         "/api/v1/portfolios",
         json={"name": "One Too Many"},
         headers=headers,
     )
-    assert r_exceed.status_code == 422
+    assert r_exceed.status_code == 409
     assert r_exceed.json()["error"]["code"] == "PORTFOLIO_LIMIT_REACHED"
 
 
@@ -150,7 +154,7 @@ async def test_target_allocations_api(client: AsyncClient, test_session: AsyncSe
     detail_targets = r_detail.json()["data"]["targets"]
     assert len(detail_targets) == 3
 
-    # 2. Invalid sum: 33.33 + 33.33 + 33.33 = 99.99 -> 422 TARGETS_INVALID
+    # 2. Invalid sum: 33.33 + 33.33 + 33.33 = 99.99 -> 422 TARGETS_INVALID (details.sum = 99.99)
     r_invalid_sum = await client.put(
         f"/api/v1/portfolios/{p_id}/targets",
         json={
@@ -163,7 +167,9 @@ async def test_target_allocations_api(client: AsyncClient, test_session: AsyncSe
         headers=headers_a,
     )
     assert r_invalid_sum.status_code == 422
-    assert r_invalid_sum.json()["error"]["code"] == "TARGETS_INVALID"
+    err_body = r_invalid_sum.json()["error"]
+    assert err_body["code"] == "TARGETS_INVALID"
+    assert err_body["details"]["sum"] == "99.99"
 
     # 3. Ownership check: User B cannot set targets on User A's portfolio -> 404
     r_foreign = await client.put(
@@ -182,3 +188,111 @@ async def test_target_allocations_api(client: AsyncClient, test_session: AsyncSe
     )
     assert r_clear.status_code == 200
     assert len(r_clear.json()["data"]) == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "method,endpoint_template,json_body",
+    [
+        ("GET", "/api/v1/portfolios/{portfolio_id}", None),
+        ("PATCH", "/api/v1/portfolios/{portfolio_id}", {"name": "Hacked Name"}),
+        ("DELETE", "/api/v1/portfolios/{portfolio_id}", None),
+        ("PUT", "/api/v1/portfolios/{portfolio_id}/targets", {"targets": []}),
+        ("GET", "/api/v1/portfolios/{portfolio_id}/transactions", None),
+        (
+            "POST",
+            "/api/v1/portfolios/{portfolio_id}/transactions",
+            {
+                "scheme_code": 100099,
+                "txn_type": "BUY",
+                "txn_date": "2026-11-01",
+                "units": "10.0000",
+                "nav": "100.00000000",
+            },
+        ),
+        ("GET", "/api/v1/portfolios/{portfolio_id}/transactions/{txn_id}", None),
+        (
+            "PATCH",
+            "/api/v1/portfolios/{portfolio_id}/transactions/{txn_id}",
+            {"notes": "Malicious update"},
+        ),
+        ("DELETE", "/api/v1/portfolios/{portfolio_id}/transactions/{txn_id}", None),
+        ("GET", "/api/v1/portfolios/{portfolio_id}/holdings", None),
+    ],
+)
+async def test_ownership_matrix_404(
+    client: AsyncClient,
+    test_session: AsyncSession,
+    method: str,
+    endpoint_template: str,
+    json_body: dict[str, Any] | None,
+) -> None:
+    """Parametrized Ownership Matrix: User B receives 404 on every route of User A."""
+    h_suffix = abs(hash(method + endpoint_template))
+    headers_a = await _get_auth_headers(client, f"owner_matrix_a_{h_suffix}@example.com")
+    headers_b = await _get_auth_headers(client, f"owner_matrix_b_{h_suffix}@example.com")
+
+    # Seed fund for transaction endpoints
+    s_code = 100000 + (h_suffix % 800000)
+    fund = Fund(
+        scheme_code=s_code,
+        isin_growth=f"INF{s_code}",
+        name=f"Ownership Test Fund {s_code}",
+        name_normalized=f"ownership test fund {s_code}",
+        amc="Test AMC",
+        category_raw="Equity",
+        asset_class="equity",
+        sub_category="flexi-cap",
+        classification_source="category",
+        plan_type="direct",
+        option_type="growth",
+        latest_nav=100.0,
+        is_active=True,
+        is_tracked=False,
+        first_seen_at=datetime.now(UTC),
+        last_seen_at=datetime.now(UTC),
+    )
+    test_session.add(fund)
+    await test_session.commit()
+
+    # User A creates portfolio
+    r_port = await client.post(
+        "/api/v1/portfolios",
+        json={"name": f"Owner A Portfolio {s_code}"},
+        headers=headers_a,
+    )
+    p_id = r_port.json()["data"]["id"]
+
+    # User A creates a transaction
+    r_txn = await client.post(
+        f"/api/v1/portfolios/{p_id}/transactions",
+        json={
+            "fund_id": str(fund.id),
+            "txn_type": "BUY",
+            "txn_date": "2026-11-01",
+            "units": "10.0000",
+            "nav": "100.00000000",
+        },
+        headers=headers_a,
+    )
+    t_id = r_txn.json()["data"]["id"]
+
+    url = endpoint_template.format(portfolio_id=p_id, txn_id=t_id)
+
+    # In POST transactions, update scheme_code in payload if present
+    req_json = dict(json_body) if json_body is not None else None
+    if req_json and "scheme_code" in req_json:
+        req_json["scheme_code"] = s_code
+
+    # User B calls User A's resource
+    response = await client.request(
+        method=method,
+        url=url,
+        json=req_json,
+        headers=headers_b,
+    )
+
+    # Must be 404, never 401/403/500
+    assert response.status_code == 404
+    error_code = response.json()["error"]["code"]
+    assert error_code in ("PORTFOLIO_NOT_FOUND", "TRANSACTION_NOT_FOUND")

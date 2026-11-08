@@ -56,5 +56,6 @@ def validate_targets(targets: list[tuple[str, Decimal]]) -> None:
 
     if total_pct != Decimal("100.00"):
         raise TargetsInvalidError(
-            f"Target allocations must sum to exactly 100.00% (sum was {total_pct}%)"
+            f"Target allocations must sum to exactly 100.00% (sum was {total_pct}%)",
+            details={"sum": str(total_pct)},
         )

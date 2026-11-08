@@ -1,9 +1,25 @@
-/** Utility formatters for NAV, dates, and badge styling. */
+/** Formatting utilities for Indian currency (INR), units, dates, and badge styling. */
 
 export interface BadgeStyle {
   label: string;
   className: string;
 }
+
+export function formatInr(amount: number | string | null | undefined): string {
+  if (amount === null || amount === undefined || amount === "") {
+    return "₹0.00";
+  }
+  const num = typeof amount === "number" ? amount : parseFloat(amount);
+  if (Number.isNaN(num)) {
+    return "₹0.00";
+  }
+  return `₹${num.toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+export const formatCurrency = formatInr;
 
 export function formatNav(nav: number | string | null | undefined): string {
   if (nav === null || nav === undefined || nav === "") {
@@ -16,20 +32,6 @@ export function formatNav(nav: number | string | null | undefined): string {
   return `₹${num.toLocaleString("en-IN", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 4,
-  })}`;
-}
-
-export function formatCurrency(amount: number | string | null | undefined): string {
-  if (amount === null || amount === undefined || amount === "") {
-    return "₹0.00";
-  }
-  const num = typeof amount === "number" ? amount : parseFloat(amount);
-  if (Number.isNaN(num)) {
-    return "₹0.00";
-  }
-  return `₹${num.toLocaleString("en-IN", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
   })}`;
 }
 
@@ -47,37 +49,11 @@ export function formatUnits(units: number | string | null | undefined): string {
   });
 }
 
-export function formatGainLoss(val: number | string | null | undefined): {
-  formatted: string;
-  isPositive: boolean;
-  isNegative: boolean;
-} {
-  if (val === null || val === undefined || val === "") {
-    return { formatted: "₹0.00", isPositive: false, isNegative: false };
-  }
-  const num = typeof val === "number" ? val : parseFloat(val);
-  if (Number.isNaN(num) || num === 0) {
-    return { formatted: "₹0.00", isPositive: false, isNegative: false };
-  }
-  const isPositive = num > 0;
-  const isNegative = num < 0;
-  const prefix = isPositive ? "+₹" : isNegative ? "-₹" : "₹";
-  const absNum = Math.abs(num);
-  return {
-    formatted: `${prefix}${absNum.toLocaleString("en-IN", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`,
-    isPositive,
-    isNegative,
-  };
-}
-
-export function formatDateString(dateStr: string | null | undefined): string {
+export function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) {
     return "—";
   }
-  // Pure date strings like "2026-11-06" parsed as calendar dates without timezone skew
+  // Pure string parsing of YYYY-MM-DD to avoid timezone skew/hydration mismatches
   const parts = dateStr.split("-");
   if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
     const year = parseInt(parts[0], 10);
@@ -104,8 +80,21 @@ export function formatDateString(dateStr: string | null | undefined): string {
   return dateStr;
 }
 
+export const formatDateString = formatDate;
+
+export function getTodayIsoDate(): string {
+  // Enforces Indian Standard Time (Asia/Kolkata) calendar date
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  return formatter.format(new Date());
+}
+
 export function getAssetClassBadge(assetClass: string): BadgeStyle {
-  const normalized = assetClass.toLowerCase();
+  const normalized = (assetClass || "").toLowerCase();
   switch (normalized) {
     case "equity":
       return {
@@ -141,7 +130,7 @@ export function getAssetClassBadge(assetClass: string): BadgeStyle {
 }
 
 export function getPlanBadge(plan: string): BadgeStyle {
-  const normalized = plan.toLowerCase();
+  const normalized = (plan || "").toLowerCase();
   switch (normalized) {
     case "direct":
       return {
@@ -165,7 +154,7 @@ export function getPlanBadge(plan: string): BadgeStyle {
 }
 
 export function getOptionBadge(option: string): BadgeStyle {
-  const normalized = option.toLowerCase();
+  const normalized = (option || "").toLowerCase();
   switch (normalized) {
     case "growth":
       return {
@@ -186,9 +175,4 @@ export function getOptionBadge(option: string): BadgeStyle {
           "bg-zinc-500/10 text-zinc-500 dark:text-zinc-400 border-zinc-500/20",
       };
   }
-}
-
-export function getTodayIsoDate(): string {
-  const d = new Date();
-  return d.toISOString().split("T")[0] || "";
 }

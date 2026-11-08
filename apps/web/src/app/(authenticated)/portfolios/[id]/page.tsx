@@ -7,32 +7,31 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
   ArrowLeft,
+  Edit2,
   HelpCircle,
   Loader2,
   Plus,
   PlusCircle,
   Search,
   Trash2,
-  TrendingDown,
-  TrendingUp,
 } from "lucide-react";
 
 import {
   portfoliosApi,
   type CreateTransactionPayload,
+  type HoldingsResponse,
   type PortfolioDetail,
   type TargetAllocation,
   type TransactionItem,
+  type UpdateTransactionPayload,
 } from "@/lib/portfolios-api";
 import {
-  formatCurrency,
-  formatDateString,
-  formatGainLoss,
-  formatNav,
+  formatDate,
+  formatInr,
   formatUnits,
   getAssetClassBadge,
   getTodayIsoDate,
-} from "@/lib/formatters";
+} from "@/lib/format";
 import { evaluateTargets, VALID_ASSET_CLASSES } from "@/lib/targets";
 import { deriveTransactionValues } from "@/lib/transaction-hint";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -81,6 +80,7 @@ interface PageProps {
 export default function PortfolioDetailPage({ params }: PageProps) {
   const { id } = use(params);
   const queryClient = useQueryClient();
+  const todayIso = getTodayIsoDate();
 
   // Portfolio Detail Query
   const {
@@ -90,6 +90,15 @@ export default function PortfolioDetailPage({ params }: PageProps) {
   } = useQuery<PortfolioDetail>({
     queryKey: ["portfolio", id],
     queryFn: () => portfoliosApi.get(id),
+  });
+
+  // Holdings Query (Phase 3A derived positions)
+  const {
+    data: holdingsData,
+    isLoading: isHoldingsLoading,
+  } = useQuery<HoldingsResponse>({
+    queryKey: ["holdings", id],
+    queryFn: () => portfoliosApi.getHoldings(id),
   });
 
   // Transactions Query
@@ -106,24 +115,24 @@ export default function PortfolioDetailPage({ params }: PageProps) {
   const [hasTargetsChanged, setHasTargetsChanged] = useState(false);
   const [targetsMessage, setTargetsMessage] = useState<string | null>(null);
 
-  // Sync targets state from server query
+  // Sync initial targets
   useEffect(() => {
     if (portfolio?.targets) {
       setTargetRows(portfolio.targets);
-      setHasTargetsChanged(false);
     }
   }, [portfolio?.targets]);
 
   const targetsEvaluation = evaluateTargets(targetRows);
 
   const updateTargetsMutation = useMutation({
-    mutationFn: (targets: TargetAllocation[]) =>
-      portfoliosApi.updateTargets(id, targets),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["portfolio", id] });
+    mutationFn: (newTargets: TargetAllocation[]) =>
+      portfoliosApi.updateTargets(id, newTargets),
+    onSuccess: (savedTargets) => {
+      setTargetRows(savedTargets);
       setHasTargetsChanged(false);
       setTargetsMessage("Target allocations updated successfully.");
-      setTimeout(() => setTargetsMessage(null), 4000);
+      queryClient.invalidateQueries({ queryKey: ["portfolio", id] });
+      setTimeout(() => setTargetsMessage(null), 3000);
     },
     onError: (err: { message?: string }) => {
       setTargetsMessage(err.message || "Failed to update target allocations.");
@@ -136,17 +145,26 @@ export default function PortfolioDetailPage({ params }: PageProps) {
   const debouncedFundSearch = useDebounce(fundSearch, 300);
   const [selectedFund, setSelectedFund] = useState<FundSearchItem | null>(null);
   const [manualSchemeCode, setManualSchemeCode] = useState("");
-
   const [txnType, setTxnType] = useState<"BUY" | "SELL">("BUY");
-  const [txnDate, setTxnDate] = useState(() => getTodayIsoDate());
+  const [txnDate, setTxnDate] = useState(todayIso);
   const [txnUnits, setTxnUnits] = useState("");
   const [txnNav, setTxnNav] = useState("");
   const [txnAmount, setTxnAmount] = useState("");
   const [txnNotes, setTxnNotes] = useState("");
   const [txnError, setTxnError] = useState<string | null>(null);
 
-  // Fund search query inside dialog
-  const { data: fundSearchResults, isFetching: isSearchingFunds } =
+  // Edit Transaction Modal State
+  const [isEditTxnOpen, setIsEditTxnOpen] = useState(false);
+  const [editingTxn, setEditingTxn] = useState<TransactionItem | null>(null);
+  const [editDate, setEditDate] = useState("");
+  const [editUnits, setEditUnits] = useState("");
+  const [editNav, setEditNav] = useState("");
+  const [editAmount, setEditAmount] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+  const [editError, setEditError] = useState<string | null>(null);
+
+  // Fund search dropdown query
+  const { data: searchResults, isLoading: isSearchingFunds } =
     useQuery<FundSearchResponse>({
       queryKey: ["fund-picker", debouncedFundSearch],
       queryFn: () =>
@@ -156,16 +174,28 @@ export default function PortfolioDetailPage({ params }: PageProps) {
       enabled: isAddTxnOpen && debouncedFundSearch.trim().length >= 2,
     });
 
-  // Calculate live derivation hints
+  // Calculate live derivation hints for Add
   const hintResult = deriveTransactionValues({
     units: txnUnits,
     nav: txnNav,
     amount: txnAmount,
   });
 
+  // Calculate live derivation hints for Edit
+  const editHintResult = deriveTransactionValues({
+    units: editUnits,
+    nav: editNav,
+    amount: editAmount,
+  });
+
   // Auto-fill NAV when fund is selected if user hasn't typed one
   useEffect(() => {
-    if (selectedFund && selectedFund.latest_nav !== null && selectedFund.latest_nav !== undefined && !txnNav) {
+    if (
+      selectedFund &&
+      selectedFund.latest_nav !== null &&
+      selectedFund.latest_nav !== undefined &&
+      !txnNav
+    ) {
       setTxnNav(String(selectedFund.latest_nav));
     }
   }, [selectedFund, txnNav]);
@@ -175,6 +205,7 @@ export default function PortfolioDetailPage({ params }: PageProps) {
       portfoliosApi.createTransaction(id, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["portfolio", id] });
+      queryClient.invalidateQueries({ queryKey: ["holdings", id] });
       queryClient.invalidateQueries({ queryKey: ["transactions", id] });
       setIsAddTxnOpen(false);
       resetTxnForm();
@@ -184,10 +215,28 @@ export default function PortfolioDetailPage({ params }: PageProps) {
     },
   });
 
+  const updateTxnMutation = useMutation({
+    mutationFn: (payload: UpdateTransactionPayload) => {
+      if (!editingTxn) throw new Error("No transaction selected for edit");
+      return portfoliosApi.updateTransaction(id, editingTxn.id, payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["portfolio", id] });
+      queryClient.invalidateQueries({ queryKey: ["holdings", id] });
+      queryClient.invalidateQueries({ queryKey: ["transactions", id] });
+      setIsEditTxnOpen(false);
+      setEditingTxn(null);
+    },
+    onError: (err: { message?: string }) => {
+      setEditError(err.message || "Failed to update transaction.");
+    },
+  });
+
   const deleteTxnMutation = useMutation({
     mutationFn: (txnId: string) => portfoliosApi.deleteTransaction(id, txnId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["portfolio", id] });
+      queryClient.invalidateQueries({ queryKey: ["holdings", id] });
       queryClient.invalidateQueries({ queryKey: ["transactions", id] });
     },
     onError: (err: { message?: string }) => {
@@ -200,11 +249,23 @@ export default function PortfolioDetailPage({ params }: PageProps) {
     setSelectedFund(null);
     setManualSchemeCode("");
     setTxnType("BUY");
+    setTxnDate(todayIso);
     setTxnUnits("");
     setTxnNav("");
     setTxnAmount("");
     setTxnNotes("");
     setTxnError(null);
+  };
+
+  const openEditModal = (txn: TransactionItem) => {
+    setEditingTxn(txn);
+    setEditDate(txn.txn_date);
+    setEditUnits(txn.units);
+    setEditNav(txn.nav);
+    setEditAmount(txn.amount);
+    setEditNotes(txn.notes || "");
+    setEditError(null);
+    setIsEditTxnOpen(true);
   };
 
   const handleTxnSubmit = (e: React.FormEvent) => {
@@ -225,7 +286,6 @@ export default function PortfolioDetailPage({ params }: PageProps) {
       return;
     }
 
-    // Must provide at least two of units, nav, amount
     const filledCount = [txnUnits, txnNav, txnAmount].filter(
       (v) => v.trim() !== "",
     ).length;
@@ -240,7 +300,6 @@ export default function PortfolioDetailPage({ params }: PageProps) {
       return;
     }
 
-    // Auto-fill derived value if applicable
     let finalUnits = txnUnits.trim() || undefined;
     let finalNav = txnNav.trim() || undefined;
     let finalAmount = txnAmount.trim() || undefined;
@@ -261,6 +320,51 @@ export default function PortfolioDetailPage({ params }: PageProps) {
       nav: finalNav,
       amount: finalAmount,
       notes: txnNotes.trim() || undefined,
+    });
+  };
+
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTxn) return;
+    setEditError(null);
+
+    if (!editDate) {
+      setEditError("Transaction date is required.");
+      return;
+    }
+
+    const filledCount = [editUnits, editNav, editAmount].filter(
+      (v) => v.trim() !== "",
+    ).length;
+
+    if (filledCount < 2) {
+      setEditError("Please fill at least two of Units, NAV, and Amount.");
+      return;
+    }
+
+    if (!editHintResult.isValid) {
+      setEditError(editHintResult.error || "Invalid transaction values.");
+      return;
+    }
+
+    let finalUnits = editUnits.trim() || undefined;
+    let finalNav = editNav.trim() || undefined;
+    let finalAmount = editAmount.trim() || undefined;
+
+    if (editHintResult.derivedField === "amount" && editHintResult.derivedValue) {
+      finalAmount = editHintResult.derivedValue;
+    } else if (editHintResult.derivedField === "units" && editHintResult.derivedValue) {
+      finalUnits = editHintResult.derivedValue;
+    } else if (editHintResult.derivedField === "nav" && editHintResult.derivedValue) {
+      finalNav = editHintResult.derivedValue;
+    }
+
+    updateTxnMutation.mutate({
+      txn_date: editDate,
+      units: finalUnits,
+      nav: finalNav,
+      amount: finalAmount,
+      notes: editNotes.trim() || undefined,
     });
   };
 
@@ -295,8 +399,8 @@ export default function PortfolioDetailPage({ params }: PageProps) {
     );
   }
 
-  const unrealizedGain = formatGainLoss(portfolio.unrealized_gain);
-  const realizedGain = formatGainLoss(portfolio.realized_gain);
+  const holdings = holdingsData?.items || [];
+  const totals = holdingsData?.totals;
 
   return (
     <div className="container mx-auto space-y-8 px-4 py-8 sm:px-8">
@@ -329,81 +433,47 @@ export default function PortfolioDetailPage({ params }: PageProps) {
         </div>
       </div>
 
-      {/* Summary Metrics Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Summary Metrics Cards (Phase 3A: No Valuation) */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
             <CardDescription className="text-xs uppercase font-medium">
-              Total Invested
+              Total cost basis
             </CardDescription>
             <CardTitle className="text-2xl font-bold">
-              {formatCurrency(portfolio.total_invested)}
+              {formatInr(totals?.cost_basis || portfolio.total_cost_basis || "0.00")}
             </CardTitle>
           </CardHeader>
           <CardContent className="text-xs text-muted-foreground">
-            Net capital cost basis
+            Aggregate cost basis across open positions
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
             <CardDescription className="text-xs uppercase font-medium">
-              Current Value
+              Open positions
             </CardDescription>
             <CardTitle className="text-2xl font-bold">
-              {formatCurrency(portfolio.current_value)}
+              {totals?.open_positions ?? portfolio.open_positions ?? 0}
             </CardTitle>
           </CardHeader>
           <CardContent className="text-xs text-muted-foreground">
-            At latest available NAV
+            Funds currently held with positive units
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
             <CardDescription className="text-xs uppercase font-medium">
-              Unrealized Gain / Loss
+              Transactions
             </CardDescription>
-            <CardTitle
-              className={`text-2xl font-bold flex items-center gap-1 ${
-                unrealizedGain.isPositive
-                  ? "text-emerald-600 dark:text-emerald-400"
-                  : unrealizedGain.isNegative
-                    ? "text-rose-600 dark:text-rose-400"
-                    : ""
-              }`}
-            >
-              {unrealizedGain.isPositive && <TrendingUp className="h-5 w-5" />}
-              {unrealizedGain.isNegative && <TrendingDown className="h-5 w-5" />}
-              <span>{unrealizedGain.formatted}</span>
+            <CardTitle className="text-2xl font-bold">
+              {portfolio.total_transactions ?? transactions.length}
             </CardTitle>
           </CardHeader>
           <CardContent className="text-xs text-muted-foreground">
-            Current Value − Invested
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs uppercase font-medium">
-              Realized Gain / Loss
-            </CardDescription>
-            <CardTitle
-              className={`text-2xl font-bold flex items-center gap-1 ${
-                realizedGain.isPositive
-                  ? "text-emerald-600 dark:text-emerald-400"
-                  : realizedGain.isNegative
-                    ? "text-rose-600 dark:text-rose-400"
-                    : ""
-              }`}
-            >
-              {realizedGain.isPositive && <TrendingUp className="h-5 w-5" />}
-              {realizedGain.isNegative && <TrendingDown className="h-5 w-5" />}
-              <span>{realizedGain.formatted}</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-xs text-muted-foreground">
-            From settled redemptions
+            Total ledger entries recorded
           </CardContent>
         </Card>
       </div>
@@ -574,9 +644,10 @@ export default function PortfolioDetailPage({ params }: PageProps) {
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  const unusedClass = VALID_ASSET_CLASSES.find(
-                    (c) => !targetRows.some((r) => r.asset_class === c),
-                  ) || "equity";
+                  const unusedClass =
+                    VALID_ASSET_CLASSES.find(
+                      (c) => !targetRows.some((r) => r.asset_class === c),
+                    ) || "equity";
                   setTargetRows([
                     ...targetRows,
                     { asset_class: unusedClass, target_pct: "" },
@@ -593,17 +664,21 @@ export default function PortfolioDetailPage({ params }: PageProps) {
         </CardContent>
       </Card>
 
-      {/* Holdings / Positions Table */}
+      {/* Holdings Table (Average Cost Derived Positions) */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg font-semibold">Holdings</CardTitle>
           <CardDescription>
-            Current holdings derived deterministically from the transaction ledger via the average cost method.
+            Positions derived deterministically from the transaction ledger via the average cost method.
           </CardDescription>
         </CardHeader>
 
         <CardContent>
-          {portfolio.positions.length === 0 ? (
+          {isHoldingsLoading ? (
+            <div className="flex h-32 items-center justify-center">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : holdings.length === 0 ? (
             <div className="py-8 text-center text-sm text-muted-foreground">
               No holdings yet. Add buy transactions to build positions.
             </div>
@@ -615,24 +690,24 @@ export default function PortfolioDetailPage({ params }: PageProps) {
                   <TableHead>Class</TableHead>
                   <TableHead className="text-right">Units</TableHead>
                   <TableHead className="text-right">Avg Cost</TableHead>
-                  <TableHead className="text-right">Invested</TableHead>
-                  <TableHead className="text-right">Latest NAV</TableHead>
-                  <TableHead className="text-right">Current Value</TableHead>
-                  <TableHead className="text-right">Unrealized Gain</TableHead>
+                  <TableHead className="text-right">Cost Basis</TableHead>
+                  <TableHead className="text-right">Total Bought</TableHead>
+                  <TableHead className="text-right">Total Sold</TableHead>
+                  <TableHead className="text-center">Dates (First - Last)</TableHead>
+                  <TableHead className="text-center">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {portfolio.positions.map((pos) => {
-                  const badge = getAssetClassBadge(pos.asset_class);
-                  const gain = formatGainLoss(pos.unrealized_gain);
+                {holdings.map((h) => {
+                  const badge = getAssetClassBadge(h.fund.asset_class);
                   return (
-                    <TableRow key={pos.scheme_code}>
+                    <TableRow key={h.scheme_code}>
                       <TableCell>
                         <div className="font-medium text-foreground">
-                          {pos.fund_name}
+                          {h.fund.name}
                         </div>
                         <div className="text-xs text-muted-foreground font-mono">
-                          Scheme: {pos.scheme_code}
+                          Scheme: {h.scheme_code}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -644,35 +719,27 @@ export default function PortfolioDetailPage({ params }: PageProps) {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right font-mono">
-                        {formatUnits(pos.units)}
+                        {formatUnits(h.units)}
                       </TableCell>
                       <TableCell className="text-right font-mono">
-                        {formatNav(pos.avg_nav)}
-                      </TableCell>
-                      <TableCell className="text-right font-mono">
-                        {formatCurrency(pos.total_invested)}
-                      </TableCell>
-                      <TableCell className="text-right font-mono">
-                        <div>{formatNav(pos.latest_nav)}</div>
-                        <div className="text-[10px] text-muted-foreground">
-                          {pos.latest_nav_date
-                            ? formatDateString(pos.latest_nav_date)
-                            : ""}
-                        </div>
+                        {formatInr(h.avg_cost)}
                       </TableCell>
                       <TableCell className="text-right font-mono font-medium">
-                        {formatCurrency(pos.current_value)}
+                        {formatInr(h.cost_basis)}
                       </TableCell>
-                      <TableCell
-                        className={`text-right font-mono font-medium ${
-                          gain.isPositive
-                            ? "text-emerald-600 dark:text-emerald-400"
-                            : gain.isNegative
-                              ? "text-rose-600 dark:text-rose-400"
-                              : ""
-                        }`}
-                      >
-                        {gain.formatted}
+                      <TableCell className="text-right font-mono text-muted-foreground">
+                        {formatInr(h.total_bought)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-muted-foreground">
+                        {formatInr(h.total_sold)}
+                      </TableCell>
+                      <TableCell className="text-center text-xs text-muted-foreground">
+                        {formatDate(h.first_txn_date)} - {formatDate(h.last_txn_date)}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant={h.is_closed ? "secondary" : "default"}>
+                          {h.is_closed ? "Closed" : "Open"}
+                        </Badge>
                       </TableCell>
                     </TableRow>
                   );
@@ -686,35 +753,26 @@ export default function PortfolioDetailPage({ params }: PageProps) {
       {/* Transaction Ledger Table */}
       <Card>
         <CardHeader>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-lg font-semibold">
                 Transaction Ledger
               </CardTitle>
               <CardDescription>
-                Append-only record of all buy and sell events in chronological order.
+                Deterministic append-only ledger entries ordered by transaction date.
               </CardDescription>
             </div>
-
-            <Button
-              size="sm"
-              onClick={() => setIsAddTxnOpen(true)}
-              className="inline-flex items-center gap-1.5"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Add Transaction</span>
-            </Button>
           </div>
         </CardHeader>
 
         <CardContent>
           {isTxnsLoading ? (
-            <div className="py-8 text-center text-sm text-muted-foreground">
-              Loading ledger...
+            <div className="flex h-32 items-center justify-center">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : transactions.length === 0 ? (
             <div className="py-8 text-center text-sm text-muted-foreground">
-              No transactions recorded in this ledger yet.
+              No transactions recorded yet. Click &quot;Add Transaction&quot; to begin.
             </div>
           ) : (
             <Table>
@@ -727,66 +785,81 @@ export default function PortfolioDetailPage({ params }: PageProps) {
                   <TableHead className="text-right">NAV</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
                   <TableHead>Notes</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {transactions.map((txn) => (
                   <TableRow key={txn.id}>
-                    <TableCell className="font-mono text-xs">
-                      {formatDateString(txn.txn_date)}
+                    <TableCell className="font-mono text-xs whitespace-nowrap">
+                      {formatDate(txn.txn_date)}
                     </TableCell>
                     <TableCell>
                       <Badge
                         variant="outline"
                         className={
                           txn.txn_type === "BUY"
-                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                            : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
+                            ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                            : "bg-rose-500/10 text-rose-600 border-rose-500/20"
                         }
                       >
                         {txn.txn_type}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <div className="font-medium text-foreground">
-                        {txn.fund_name || `Scheme ${txn.scheme_code}`}
+                      <div className="font-medium">
+                        {txn.fund_name || `Scheme ${txn.scheme_code || "Unknown"}`}
                       </div>
-                      <div className="text-[10px] text-muted-foreground font-mono">
-                        {txn.scheme_code}
-                      </div>
+                      {txn.scheme_code && (
+                        <div className="text-xs text-muted-foreground font-mono">
+                          {txn.scheme_code}
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell className="text-right font-mono">
                       {formatUnits(txn.units)}
                     </TableCell>
                     <TableCell className="text-right font-mono">
-                      {formatNav(txn.nav)}
+                      ₹{txn.nav}
                     </TableCell>
                     <TableCell className="text-right font-mono font-medium">
-                      {formatCurrency(txn.amount)}
+                      {formatInr(txn.amount)}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground max-w-xs truncate">
                       {txn.notes || "—"}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                        onClick={() => {
-                          if (
-                            confirm(
-                              `Delete transaction from ${txn.txn_date} (${txn.txn_type} ${txn.units} units)?`,
-                            )
-                          ) {
-                            deleteTxnMutation.mutate(txn.id);
-                          }
-                        }}
-                        disabled={deleteTxnMutation.isPending}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        <span className="sr-only">Delete transaction</span>
-                      </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          title="Edit transaction"
+                          onClick={() => openEditModal(txn)}
+                        >
+                          <Edit2 className="h-4 w-4" />
+                          <span className="sr-only">Edit</span>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                          title="Delete transaction"
+                          disabled={deleteTxnMutation.isPending}
+                          onClick={() => {
+                            if (
+                              confirm(
+                                "Are you sure you want to delete this transaction?",
+                              )
+                            ) {
+                              deleteTxnMutation.mutate(txn.id);
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          <span className="sr-only">Delete</span>
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -798,215 +871,202 @@ export default function PortfolioDetailPage({ params }: PageProps) {
 
       {/* Add Transaction Dialog */}
       <Dialog open={isAddTxnOpen} onOpenChange={setIsAddTxnOpen}>
-        <DialogContent className="max-w-xl">
-          <form onSubmit={handleTxnSubmit}>
-            <DialogHeader>
-              <DialogTitle>Record Transaction</DialogTitle>
-              <DialogDescription>
-                Provide any two of Units, NAV, or Amount. The third will be derived automatically.
-              </DialogDescription>
-            </DialogHeader>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Add Transaction</DialogTitle>
+            <DialogDescription>
+              Record a buy or sell transaction. You may fill any two of Units, NAV, or Amount, and FolioPilot will derive the third.
+            </DialogDescription>
+          </DialogHeader>
 
-            <div className="space-y-4 py-4">
-              {txnError && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>Transaction Error</AlertTitle>
-                  <AlertDescription>{txnError}</AlertDescription>
-                </Alert>
-              )}
+          <form onSubmit={handleTxnSubmit} className="space-y-4 py-2">
+            {txnError && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{txnError}</AlertDescription>
+              </Alert>
+            )}
 
-              {/* Fund Picker */}
-              <div className="space-y-2">
-                <Label htmlFor="fund-search">Mutual Fund Scheme *</Label>
-                {selectedFund ? (
-                  <div className="flex items-center justify-between rounded-md border border-border p-3 bg-muted/30">
-                    <div>
-                      <div className="font-semibold text-sm">
-                        {selectedFund.name}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        Scheme Code: {selectedFund.scheme_code} | Class: {selectedFund.asset_class} | Latest NAV: ₹{selectedFund.latest_nav || "—"}
-                      </div>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setSelectedFund(null);
-                        setFundSearch("");
-                      }}
-                    >
-                      Change
-                    </Button>
+            {/* Fund Selector */}
+            <div className="space-y-2">
+              <Label>Mutual Fund Scheme</Label>
+              {selectedFund ? (
+                <div className="flex items-center justify-between rounded-md border p-2 text-sm bg-muted/40">
+                  <div>
+                    <p className="font-medium">{selectedFund.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Scheme Code: {selectedFund.scheme_code} • {selectedFund.amc}
+                    </p>
                   </div>
-                ) : (
-                  <div className="space-y-2">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        id="fund-search"
-                        placeholder="Search fund name or scheme code (e.g. Parag Parikh, Nifty 50)..."
-                        value={fundSearch}
-                        onChange={(e) => setFundSearch(e.target.value)}
-                        className="pl-9"
-                      />
-                    </div>
-
-                    {isSearchingFunds && (
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground p-2">
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        <span>Searching fund master...</span>
-                      </div>
-                    )}
-
-                    {fundSearchResults?.items && fundSearchResults.items.length > 0 && (
-                      <div className="max-h-48 overflow-y-auto rounded-md border border-border bg-popover shadow-md">
-                        {fundSearchResults.items.map((fund) => (
-                          <div
-                            key={fund.scheme_code}
-                            className="cursor-pointer p-2.5 text-xs hover:bg-accent border-b last:border-b-0"
-                            onClick={() => {
-                              setSelectedFund(fund);
-                              setFundSearch("");
-                            }}
-                          >
-                            <div className="font-medium text-foreground">
-                              {fund.name}
-                            </div>
-                            <div className="text-[11px] text-muted-foreground">
-                              {fund.scheme_code} • {fund.asset_class} • NAV: ₹{fund.latest_nav || "—"}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    <div className="flex items-center gap-2 pt-1 text-xs text-muted-foreground">
-                      <span>Or enter Scheme Code directly:</span>
-                      <Input
-                        placeholder="e.g. 122639"
-                        value={manualSchemeCode}
-                        onChange={(e) => setManualSchemeCode(e.target.value)}
-                        className="h-7 w-32 text-xs"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Txn Type and Date */}
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Transaction Type *</Label>
-                  <Select
-                    value={txnType}
-                    onValueChange={(val: "BUY" | "SELL") => setTxnType(val)}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedFund(null)}
                   >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="BUY">BUY (Purchase)</SelectItem>
-                      <SelectItem value="SELL">SELL (Redemption)</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    Change
+                  </Button>
                 </div>
-
+              ) : (
                 <div className="space-y-2">
-                  <Label htmlFor="txn-date">Transaction Date *</Label>
-                  <Input
-                    id="txn-date"
-                    type="date"
-                    value={txnDate}
-                    onChange={(e) => setTxnDate(e.target.value)}
-                    required
-                  />
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      placeholder="Search scheme name or AMFI code..."
+                      value={fundSearch}
+                      onChange={(e) => setFundSearch(e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
+
+                  {isSearchingFunds && (
+                    <div className="py-2 text-center text-xs text-muted-foreground flex items-center justify-center gap-1">
+                      <Loader2 className="h-3 w-3 animate-spin" /> Searching...
+                    </div>
+                  )}
+
+                  {searchResults && searchResults.items.length > 0 && (
+                    <div className="max-h-48 overflow-y-auto rounded-md border bg-popover text-popover-foreground shadow-sm divide-y">
+                      {searchResults.items.map((fund) => (
+                        <button
+                          key={fund.scheme_code}
+                          type="button"
+                          className="w-full text-left p-2 hover:bg-muted text-xs transition-colors"
+                          onClick={() => {
+                            setSelectedFund(fund);
+                            setFundSearch("");
+                          }}
+                        >
+                          <div className="font-medium text-foreground">
+                            {fund.name}
+                          </div>
+                          <div className="text-muted-foreground">
+                            AMFI: {fund.scheme_code} • {fund.amc}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="pt-1">
+                    <Label className="text-xs text-muted-foreground">
+                      Or enter scheme code directly:
+                    </Label>
+                    <Input
+                      type="number"
+                      placeholder="e.g. 122639"
+                      value={manualSchemeCode}
+                      onChange={(e) => setManualSchemeCode(e.target.value)}
+                      className="mt-1"
+                    />
+                  </div>
                 </div>
+              )}
+            </div>
+
+            {/* Type & Date */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Transaction Type</Label>
+                <Select
+                  value={txnType}
+                  onValueChange={(val: "BUY" | "SELL") => setTxnType(val)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="BUY">BUY</SelectItem>
+                    <SelectItem value="SELL">SELL</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
-              {/* Units, NAV, Amount (Any two of three) */}
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <div className="space-y-2">
-                  <Label htmlFor="txn-units">Units</Label>
+              <div className="space-y-2">
+                <Label>Date</Label>
+                <Input
+                  type="date"
+                  value={txnDate}
+                  max={todayIso}
+                  onChange={(e) => setTxnDate(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Math Inputs: Any 2 of 3 */}
+            <div className="space-y-3 rounded-lg border p-3 bg-muted/20">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">
+                  Transaction Values
+                </span>
+                <span className="flex items-center gap-1">
+                  <HelpCircle className="h-3.5 w-3.5" /> Any two required
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Units</Label>
                   <Input
-                    id="txn-units"
                     type="number"
                     step="0.0001"
-                    placeholder={hintResult.derivedField === "units" && hintResult.derivedValue ? `[${hintResult.derivedValue}]` : "e.g. 100.5"}
+                    placeholder="0.0000"
                     value={txnUnits}
                     onChange={(e) => setTxnUnits(e.target.value)}
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="txn-nav">NAV (₹)</Label>
+                <div className="space-y-1">
+                  <Label className="text-xs">NAV (₹)</Label>
                   <Input
-                    id="txn-nav"
                     type="number"
-                    step="0.0001"
-                    placeholder={hintResult.derivedField === "nav" && hintResult.derivedValue ? `[₹${hintResult.derivedValue}]` : "e.g. 25.25"}
+                    step="0.00000001"
+                    placeholder="0.0000"
                     value={txnNav}
                     onChange={(e) => setTxnNav(e.target.value)}
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="txn-amount">Total Amount (₹)</Label>
+                <div className="space-y-1">
+                  <Label className="text-xs">Amount (₹)</Label>
                   <Input
-                    id="txn-amount"
                     type="number"
                     step="0.01"
-                    placeholder={hintResult.derivedField === "amount" && hintResult.derivedValue ? `[₹${hintResult.derivedValue}]` : "e.g. 2537.63"}
+                    placeholder="0.00"
                     value={txnAmount}
                     onChange={(e) => setTxnAmount(e.target.value)}
                   />
                 </div>
               </div>
 
-              {/* Hint Box */}
+              {/* Dynamic Live Hint */}
               {hintResult.hintMessage && (
-                <div className="rounded-md bg-muted/50 p-2.5 text-xs text-muted-foreground flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <HelpCircle className="h-4 w-4 text-primary" />
-                    <span>{hintResult.hintMessage}</span>
-                  </div>
-                  {hintResult.derivedField && hintResult.derivedValue && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 px-2 text-xs"
-                      onClick={() => {
-                        if (hintResult.derivedField === "amount") {
-                          setTxnAmount(hintResult.derivedValue!);
-                        } else if (hintResult.derivedField === "units") {
-                          setTxnUnits(hintResult.derivedValue!);
-                        } else if (hintResult.derivedField === "nav") {
-                          setTxnNav(hintResult.derivedValue!);
-                        }
-                      }}
-                    >
-                      Apply
-                    </Button>
-                  )}
+                <div
+                  className={`text-xs p-2 rounded ${
+                    hintResult.isValid
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                      : "bg-destructive/10 text-destructive"
+                  }`}
+                >
+                  {hintResult.hintMessage}
                 </div>
               )}
-
-              {/* Notes */}
-              <div className="space-y-2">
-                <Label htmlFor="txn-notes">Notes (Optional)</Label>
-                <Input
-                  id="txn-notes"
-                  placeholder="e.g. Monthly SIP or Lump sum investment"
-                  value={txnNotes}
-                  onChange={(e) => setTxnNotes(e.target.value)}
-                />
-              </div>
             </div>
 
-            <DialogFooter>
+            {/* Notes */}
+            <div className="space-y-2">
+              <Label>Notes (Optional)</Label>
+              <Input
+                type="text"
+                placeholder="e.g. Monthly SIP or Rebalancing"
+                value={txnNotes}
+                onChange={(e) => setTxnNotes(e.target.value)}
+              />
+            </div>
+
+            <DialogFooter className="pt-2">
               <Button
                 type="button"
                 variant="outline"
@@ -1014,7 +1074,10 @@ export default function PortfolioDetailPage({ params }: PageProps) {
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={addTxnMutation.isPending}>
+              <Button
+                type="submit"
+                disabled={addTxnMutation.isPending || !hintResult.isValid}
+              >
                 {addTxnMutation.isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -1022,6 +1085,143 @@ export default function PortfolioDetailPage({ params }: PageProps) {
                   </>
                 ) : (
                   "Record Transaction"
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Transaction Dialog */}
+      <Dialog open={isEditTxnOpen} onOpenChange={setIsEditTxnOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Transaction</DialogTitle>
+            <DialogDescription>
+              Update transaction details. Date, units, NAV, amount, and notes may be edited under full ledger re-validation.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleEditSubmit} className="space-y-4 py-2">
+            {editError && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{editError}</AlertDescription>
+              </Alert>
+            )}
+
+            {/* Read-only Fund & Type */}
+            <div className="rounded-md border p-3 bg-muted/40 text-xs space-y-1">
+              <p className="font-medium text-foreground">
+                {editingTxn?.fund_name || `Scheme ${editingTxn?.scheme_code}`}
+              </p>
+              <p className="text-muted-foreground">
+                Type: <span className="font-semibold">{editingTxn?.txn_type}</span> (Immutable)
+              </p>
+            </div>
+
+            {/* Date */}
+            <div className="space-y-2">
+              <Label>Date</Label>
+              <Input
+                type="date"
+                value={editDate}
+                max={todayIso}
+                onChange={(e) => setEditDate(e.target.value)}
+                required
+              />
+            </div>
+
+            {/* Math Inputs: Any 2 of 3 */}
+            <div className="space-y-3 rounded-lg border p-3 bg-muted/20">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">
+                  Transaction Values
+                </span>
+                <span className="flex items-center gap-1">
+                  <HelpCircle className="h-3.5 w-3.5" /> Any two required
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Units</Label>
+                  <Input
+                    type="number"
+                    step="0.0001"
+                    placeholder="0.0000"
+                    value={editUnits}
+                    onChange={(e) => setEditUnits(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs">NAV (₹)</Label>
+                  <Input
+                    type="number"
+                    step="0.00000001"
+                    placeholder="0.0000"
+                    value={editNav}
+                    onChange={(e) => setEditNav(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs">Amount (₹)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={editAmount}
+                    onChange={(e) => setEditAmount(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Dynamic Live Hint */}
+              {editHintResult.hintMessage && (
+                <div
+                  className={`text-xs p-2 rounded ${
+                    editHintResult.isValid
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                      : "bg-destructive/10 text-destructive"
+                  }`}
+                >
+                  {editHintResult.hintMessage}
+                </div>
+              )}
+            </div>
+
+            {/* Notes */}
+            <div className="space-y-2">
+              <Label>Notes (Optional)</Label>
+              <Input
+                type="text"
+                placeholder="Notes..."
+                value={editNotes}
+                onChange={(e) => setEditNotes(e.target.value)}
+              />
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsEditTxnOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={updateTxnMutation.isPending || !editHintResult.isValid}
+              >
+                {updateTxnMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving Changes...
+                  </>
+                ) : (
+                  "Save Changes"
                 )}
               </Button>
             </DialogFooter>

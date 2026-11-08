@@ -13,7 +13,7 @@ import {
   getAssetClassBadge,
   getOptionBadge,
   getPlanBadge,
-} from "@/lib/formatters";
+} from "@/lib/format";
 import { NavChart } from "@/components/funds/nav-chart";
 import { Button } from "@/components/ui/button";
 import type {

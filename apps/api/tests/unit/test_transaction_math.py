@@ -89,8 +89,22 @@ def test_resolve_transaction_amounts_tolerance_matching() -> None:
     assert a == Decimal("998.00")
 
     # Outside tolerance: 1002.50 -> diff 2.50 > 2.00 -> AmountMismatchError
-    with pytest.raises(AmountMismatchError, match="exceeding allowable tolerance"):
+    with pytest.raises(AmountMismatchError) as exc_info:
         resolve_transaction_amounts(units=units, nav=nav, amount=Decimal("1002.50"))
+    assert exc_info.value.code == "AMOUNT_MISMATCH"
+    assert exc_info.value.status_code == 422
+    assert exc_info.value.details == {"expected": "1000.00", "given": "1002.50"}
+
+
+def test_validate_scales_rejects_nan_and_infinity() -> None:
+    with pytest.raises(ValidationError, match="finite number"):
+        validate_scales(units=Decimal("NaN"))
+
+    with pytest.raises(ValidationError, match="finite number"):
+        validate_scales(nav=Decimal("Infinity"))
+
+    with pytest.raises(ValidationError, match="finite number"):
+        validate_scales(amount=Decimal("-Infinity"))
 
 
 # Property-based tests via Hypothesis

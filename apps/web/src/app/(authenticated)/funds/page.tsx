@@ -13,7 +13,7 @@ import {
   getAssetClassBadge,
   getOptionBadge,
   getPlanBadge,
-} from "@/lib/formatters";
+} from "@/lib/format";
 import { useDebounce } from "@/hooks/use-debounce";
 import { FundFilters, type FilterState } from "@/components/funds/fund-filters";
 import { Button } from "@/components/ui/button";

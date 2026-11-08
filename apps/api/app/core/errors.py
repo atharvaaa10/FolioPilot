@@ -125,14 +125,13 @@ class PortfolioNameTakenError(ConflictError):
         super().__init__(message=message, code="PORTFOLIO_NAME_TAKEN", details=details)
 
 
-class PortfolioLimitReachedError(ValidationError):
-    """User has reached the maximum allowed portfolios (HTTP 422)."""
+class PortfolioLimitReachedError(ConflictError):
+    """User has reached the maximum allowed portfolios (HTTP 409)."""
 
     def __init__(
         self, message: str = "Maximum number of portfolios reached", details: Any = None
     ) -> None:
-        super().__init__(message=message, details=details)
-        self.code = "PORTFOLIO_LIMIT_REACHED"
+        super().__init__(message=message, code="PORTFOLIO_LIMIT_REACHED", details=details)
 
 
 class TargetsInvalidError(ValidationError):
@@ -153,24 +152,22 @@ class TransactionNotFoundError(NotFoundError):
         self.code = "TRANSACTION_NOT_FOUND"
 
 
-class InsufficientUnitsError(ValidationError):
-    """Selling more units than available at the transaction date (HTTP 422)."""
+class InsufficientUnitsError(ConflictError):
+    """Selling more units than available at the transaction date (HTTP 409)."""
 
     def __init__(
         self, message: str = "Insufficient units available to sell", details: Any = None
     ) -> None:
-        super().__init__(message=message, details=details)
-        self.code = "INSUFFICIENT_UNITS"
+        super().__init__(message=message, code="INSUFFICIENT_UNITS", details=details)
 
 
-class LedgerInconsistentError(ValidationError):
-    """Ledger mutation violates historical consistency or constraints (HTTP 422)."""
+class LedgerInconsistentError(ConflictError):
+    """Ledger mutation violates historical consistency or constraints (HTTP 409)."""
 
     def __init__(
         self, message: str = "Transaction violates ledger consistency", details: Any = None
     ) -> None:
-        super().__init__(message=message, details=details)
-        self.code = "LEDGER_INCONSISTENT"
+        super().__init__(message=message, code="LEDGER_INCONSISTENT", details=details)
 
 
 class AmountMismatchError(ValidationError):
@@ -185,16 +182,15 @@ class AmountMismatchError(ValidationError):
         self.code = "AMOUNT_MISMATCH"
 
 
-class TransactionLimitReachedError(ValidationError):
-    """Maximum number of transactions reached for portfolio (HTTP 422)."""
+class TransactionLimitReachedError(ConflictError):
+    """Maximum number of transactions reached for portfolio (HTTP 409)."""
 
     def __init__(
         self,
         message: str = "Maximum number of transactions reached for this portfolio",
         details: Any = None,
     ) -> None:
-        super().__init__(message=message, details=details)
-        self.code = "TRANSACTION_LIMIT_REACHED"
+        super().__init__(message=message, code="TRANSACTION_LIMIT_REACHED", details=details)
 
 
 def register_error_handlers(app: FastAPI) -> None:

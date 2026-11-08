@@ -1,4 +1,4 @@
-"""Pydantic schemas for Transaction ledger and derived positions."""
+"""Pydantic schemas for Transaction ledger and derived holdings."""
 
 from datetime import date, datetime
 from decimal import Decimal
@@ -6,6 +6,8 @@ from typing import Annotated, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, PlainSerializer
+
+from app.schemas.portfolio import TargetItem
 
 DecimalStr = Annotated[
     Decimal,
@@ -30,6 +32,19 @@ class TransactionCreate(BaseModel):
     notes: str | None = None
 
 
+class TransactionUpdate(BaseModel):
+    """Payload to update an existing transaction in portfolio ledger.
+
+    Note: txn_type and fund_id are strictly immutable.
+    """
+
+    txn_date: date | None = None
+    units: Decimal | None = None
+    nav: Decimal | None = None
+    amount: Decimal | None = None
+    notes: str | None = None
+
+
 class TransactionResponse(BaseModel):
     """Transaction ledger entry."""
 
@@ -47,37 +62,61 @@ class TransactionResponse(BaseModel):
     amount: DecimalStr
     notes: str | None = None
     created_at: datetime
+    updated_at: datetime | None = None
 
 
-class PositionResponse(BaseModel):
-    """Derived holding position for a fund calculated using average cost."""
+class FundSummary(BaseModel):
+    """Summary of fund master data embedded in holdings."""
 
-    fund_id: UUID
-    scheme_code: int
-    fund_name: str
+    name: str
+    amc: str
     asset_class: str
     sub_category: str | None
-    units: DecimalStr
-    avg_nav: DecimalStr
-    total_invested: DecimalStr
-    realized_gain: DecimalStr
+    plan_type: str
+    option_type: str
     latest_nav: OptionalDecimalStr = None
     latest_nav_date: date | None = None
-    current_value: OptionalDecimalStr = None
-    unrealized_gain: OptionalDecimalStr = None
+
+
+class HoldingResponse(BaseModel):
+    """Derived holding position for a fund calculated using average cost."""
+
+    scheme_code: int
+    fund: FundSummary
+    units: DecimalStr
+    avg_cost: DecimalStr
+    cost_basis: DecimalStr
+    total_bought: DecimalStr
+    total_sold: DecimalStr
+    first_txn_date: date
+    last_txn_date: date
+    txn_count: int
+    is_closed: bool
+
+
+class HoldingsTotals(BaseModel):
+    """Aggregated portfolio totals for holdings."""
+
+    cost_basis: DecimalStr
+    open_positions: int
+
+
+class HoldingsListResponse(BaseModel):
+    """Holdings list endpoint envelope data."""
+
+    items: list[HoldingResponse]
+    totals: HoldingsTotals
 
 
 class PortfolioDetailResponse(BaseModel):
-    """Complete portfolio view containing metadata, targets, positions, and summary metrics."""
+    """Complete portfolio view containing metadata, targets, and summary metrics."""
 
     id: UUID
     name: str
     description: str | None
     created_at: datetime
     updated_at: datetime
-    targets: list[dict[str, str]] = Field(default_factory=list)
-    positions: list[PositionResponse] = Field(default_factory=list)
-    total_invested: DecimalStr = Decimal("0.00")
-    current_value: DecimalStr = Decimal("0.00")
-    unrealized_gain: DecimalStr = Decimal("0.00")
-    realized_gain: DecimalStr = Decimal("0.00")
+    targets: list[TargetItem] = Field(default_factory=list)
+    total_cost_basis: DecimalStr = Decimal("0.00")
+    open_positions: int = 0
+    total_transactions: int = 0

@@ -14,32 +14,52 @@ export interface PortfolioSummary {
   targets: TargetAllocation[];
 }
 
-export interface Position {
-  scheme_code: number;
-  fund_name: string;
-  asset_class: string;
-  units: string;
-  avg_nav: string;
-  total_invested: string;
-  latest_nav: string | null;
-  latest_nav_date: string | null;
-  current_value: string;
-  unrealized_gain: string;
-  realized_gain: string;
+export interface PortfolioDetail extends PortfolioSummary {
+  total_cost_basis: string;
+  open_positions: number;
+  total_transactions: number;
 }
 
-export interface PortfolioDetail extends PortfolioSummary {
-  positions: Position[];
-  total_invested: string;
-  current_value: string;
-  unrealized_gain: string;
-  realized_gain: string;
+export interface FundSummary {
+  name: string;
+  amc: string;
+  asset_class: string;
+  sub_category: string | null;
+  plan_type: string;
+  option_type: string;
+  latest_nav: string | null;
+  latest_nav_date: string | null;
+}
+
+export interface Holding {
+  scheme_code: number;
+  fund: FundSummary;
+  units: string;
+  avg_cost: string;
+  cost_basis: string;
+  total_bought: string;
+  total_sold: string;
+  first_txn_date: string;
+  last_txn_date: string;
+  txn_count: number;
+  is_closed: boolean;
+}
+
+export interface HoldingsTotals {
+  cost_basis: string;
+  open_positions: number;
+}
+
+export interface HoldingsResponse {
+  items: Holding[];
+  totals: HoldingsTotals;
 }
 
 export interface TransactionItem {
   id: string;
   portfolio_id: string;
-  scheme_code: number;
+  fund_id: string;
+  scheme_code: number | null;
   fund_name: string | null;
   txn_type: "BUY" | "SELL";
   txn_date: string;
@@ -48,6 +68,7 @@ export interface TransactionItem {
   amount: string;
   notes: string | null;
   created_at: string;
+  updated_at?: string | null;
 }
 
 export interface CreatePortfolioPayload {
@@ -59,6 +80,14 @@ export interface CreateTransactionPayload {
   scheme_code: number;
   txn_type: "BUY" | "SELL";
   txn_date: string;
+  units?: string;
+  nav?: string;
+  amount?: string;
+  notes?: string;
+}
+
+export interface UpdateTransactionPayload {
+  txn_date?: string;
   units?: string;
   nav?: string;
   amount?: string;
@@ -97,8 +126,21 @@ export const portfoliosApi = {
     });
   },
 
+  getHoldings: async (id: string): Promise<HoldingsResponse> => {
+    return apiClient<HoldingsResponse>(`/api/v1/portfolios/${id}/holdings`);
+  },
+
   listTransactions: async (id: string): Promise<TransactionItem[]> => {
     return apiClient<TransactionItem[]>(`/api/v1/portfolios/${id}/transactions`);
+  },
+
+  getTransaction: async (
+    portfolioId: string,
+    transactionId: string,
+  ): Promise<TransactionItem> => {
+    return apiClient<TransactionItem>(
+      `/api/v1/portfolios/${portfolioId}/transactions/${transactionId}`,
+    );
   },
 
   createTransaction: async (
@@ -109,6 +151,20 @@ export const portfoliosApi = {
       `/api/v1/portfolios/${portfolioId}/transactions`,
       {
         method: "POST",
+        body: JSON.stringify(data),
+      },
+    );
+  },
+
+  updateTransaction: async (
+    portfolioId: string,
+    transactionId: string,
+    data: UpdateTransactionPayload,
+  ): Promise<TransactionItem> => {
+    return apiClient<TransactionItem>(
+      `/api/v1/portfolios/${portfolioId}/transactions/${transactionId}`,
+      {
+        method: "PATCH",
         body: JSON.stringify(data),
       },
     );
@@ -126,4 +182,3 @@ export const portfoliosApi = {
     );
   },
 };
-

@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 
 import { portfoliosApi, type PortfolioSummary } from "@/lib/portfolios-api";
-import { formatDateString } from "@/lib/formatters";
+import { formatDateString } from "@/lib/format";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {

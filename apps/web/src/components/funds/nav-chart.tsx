@@ -12,7 +12,7 @@ import {
   YAxis,
 } from "recharts";
 
-import { formatDateString, formatNav } from "@/lib/formatters";
+import { formatDateString, formatNav } from "@/lib/format";
 import type { NavPoint } from "@/types/funds";
 
 interface NavChartProps {

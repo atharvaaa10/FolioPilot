@@ -17,21 +17,27 @@ def validate_scales(
 ) -> None:
     """Validate decimal scale limits for transaction inputs."""
     if units is not None:
-        if units <= Decimal("0") or not units.is_finite():
+        if not units.is_finite():
+            raise ValidationError("Units must be a finite number")
+        if units <= Decimal("0"):
             raise ValidationError("Units must be greater than zero")
         exp = units.as_tuple().exponent
         if not isinstance(exp, int) or exp < -4:
             raise ValidationError("Units cannot exceed 4 decimal places")
 
     if nav is not None:
-        if nav <= Decimal("0") or not nav.is_finite():
+        if not nav.is_finite():
+            raise ValidationError("NAV must be a finite number")
+        if nav <= Decimal("0"):
             raise ValidationError("NAV must be greater than zero")
         exp = nav.as_tuple().exponent
         if not isinstance(exp, int) or exp < -8:
             raise ValidationError("NAV cannot exceed 8 decimal places")
 
     if amount is not None:
-        if amount <= Decimal("0") or not amount.is_finite():
+        if not amount.is_finite():
+            raise ValidationError("Amount must be a finite number")
+        if amount <= Decimal("0"):
             raise ValidationError("Amount must be greater than zero")
         exp = amount.as_tuple().exponent
         if not isinstance(exp, int) or exp < -2:
@@ -65,7 +71,8 @@ def resolve_transaction_amounts(
         if diff > tolerance:
             raise AmountMismatchError(
                 f"Provided amount ₹{amount} differs from units * NAV (₹{expected_amount}) "
-                f"by ₹{diff}, exceeding allowable tolerance of ₹{tolerance}"
+                f"by ₹{diff}, exceeding allowable tolerance of ₹{tolerance}",
+                details={"expected": str(expected_amount), "given": str(amount)},
             )
         return units, nav, amount
 
