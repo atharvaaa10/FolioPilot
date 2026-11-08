@@ -128,3 +128,61 @@ async def test_backfill_failure_records_failed_run_without_corrupting_history(
     )
     assert len(history_rows) == 1
     assert history_rows[0].nav == Decimal("90.00000000")
+
+
+@pytest.mark.asyncio
+async def test_backfill_writes_through_newer_amfi_nav_when_mfapi_lags(
+    test_session: AsyncSession,
+) -> None:
+    # Fund has AMFI latest NAV at date T+1 (2026-11-06)
+    fund = Fund(
+        scheme_code=999101,
+        isin_growth="INF999W02",
+        name="Lax Fund - Direct Plan - Growth",
+        name_normalized="lax fund direct plan growth",
+        amc="Test AMC",
+        category_raw="Open Ended Schemes(Equity Scheme - Large Cap Fund)",
+        asset_class="equity",
+        sub_category="large-cap",
+        classification_source="category",
+        plan_type="direct",
+        option_type="growth",
+        latest_nav=Decimal("150.00"),
+        latest_nav_date=date(2026, 11, 6),
+        is_active=True,
+        is_tracked=True,
+        first_seen_at=datetime.now(UTC),
+        last_seen_at=datetime.now(UTC),
+    )
+    test_session.add(fund)
+    await test_session.commit()
+
+    # mfapi response only has points up to date T (2026-11-05)
+    mock_client = AsyncMock(spec=MfapiClient)
+    mock_client.fetch_scheme_history.return_value = {
+        "meta": {"scheme_code": 999101, "scheme_name": "Lax Fund"},
+        "data": [
+            {"date": "05-11-2026", "nav": "148.00"},
+            {"date": "04-11-2026", "nav": "147.00"},
+        ],
+    }
+
+    run = await backfill_fund_nav_history(test_session, fund, mfapi_client=mock_client)
+    assert run.status == "success"
+
+    # Verify nav_history contains mfapi points AND the write-through point for 2026-11-06
+    rows = (
+        (
+            await test_session.execute(
+                select(NavHistory)
+                .where(NavHistory.fund_id == fund.id)
+                .order_by(NavHistory.nav_date.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(rows) == 3
+    assert rows[0].nav_date == date(2026, 11, 6)
+    assert rows[0].nav == Decimal("150.00000000")
+    assert rows[1].nav_date == date(2026, 11, 5)

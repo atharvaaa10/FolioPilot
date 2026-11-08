@@ -130,6 +130,15 @@ async def sync_amfi_funds_and_nav(
     # Step 5: Upsert funds in batches
     created, updated = await FundRepository.upsert_funds_batch(session, fund_records)
 
+    # Keep last_seen_at fresh without row churn: touch funds that weren't updated in >=12h
+    seen_scheme_codes = [p.scheme_code for p in parse_result.schemes]
+    await FundRepository.touch_last_seen(
+        session,
+        scheme_codes=seen_scheme_codes,
+        seen_at=start_time,
+        cutoff=start_time - timedelta(hours=12),
+    )
+
     # Step 6: Write NAV history row for currently tracked funds only
     tracked_funds = await FundRepository.get_tracked_funds(session)
     history_records: list[dict[str, Any]] = []

@@ -39,9 +39,8 @@ async def test_sync_fixture_idempotent(test_session: AsyncSession) -> None:
     )
     assert run1.status == "success"
     assert run1.funds_created > 0
-    created_count = run1.funds_created
 
-    # Run 2: identical fixture should create 0 new funds
+    # Run 2: identical fixture should create 0 new funds and 0 updated funds
     run2 = await sync_amfi_funds_and_nav(
         test_session,
         amfi_client=mock_client,
@@ -49,7 +48,7 @@ async def test_sync_fixture_idempotent(test_session: AsyncSession) -> None:
     )
     assert run2.status == "success"
     assert run2.funds_created == 0
-    assert run2.funds_updated == created_count
+    assert run2.funds_updated == 0
 
 
 @pytest.mark.asyncio
@@ -290,3 +289,90 @@ async def test_concurrent_sync_lock_skips_second(test_session: AsyncSession) -> 
     finally:
         await test_redis.delete(LOCK_KEY_AMFI_SYNC)
         await test_redis.aclose()
+
+
+@pytest.mark.asyncio
+async def test_nav_write_through_mfapi_ending_t_and_amfi_sync_t_plus_1(
+    test_session: AsyncSession,
+) -> None:
+    """Verify when a tracked fund's latest NAV is updated by AMFI sync,
+
+    that NAV point is also written into nav_history (ending on T+1).
+    """
+    from sqlalchemy import func
+
+    from app.clients.mfapi import MfapiClient
+    from app.services.nav_backfill import backfill_fund_nav_history
+
+    # 1. Create a tracked fund
+    fund = Fund(
+        scheme_code=999100,
+        isin_growth="INF999W01",
+        name="Write Through Fund - Direct Plan - Growth",
+        name_normalized="write through fund direct plan growth",
+        amc="Test AMC",
+        category_raw="Open Ended Schemes(Equity Scheme - Large Cap Fund)",
+        asset_class="equity",
+        sub_category="large-cap",
+        classification_source="category",
+        plan_type="direct",
+        option_type="growth",
+        is_active=True,
+        is_tracked=True,
+        first_seen_at=datetime.now(UTC),
+        last_seen_at=datetime.now(UTC),
+    )
+    test_session.add(fund)
+    await test_session.commit()
+
+    # 2. Mock mfapi ending on date T = 2026-11-05
+    mock_mfapi = AsyncMock(spec=MfapiClient)
+    mock_mfapi.fetch_scheme_history.return_value = {
+        "meta": {"scheme_code": 999100, "scheme_name": "Write Through Fund"},
+        "data": [
+            {"date": "05-11-2026", "nav": "100.00"},
+            {"date": "04-11-2026", "nav": "99.50"},
+        ],
+    }
+    backfill_run = await backfill_fund_nav_history(test_session, fund, mfapi_client=mock_mfapi)
+    assert backfill_run.status == "success"
+
+    # Verify nav_history currently ends on date T (2026-11-05)
+    max_d1 = (
+        await test_session.execute(
+            select(func.max(NavHistory.nav_date)).where(NavHistory.fund_id == fund.id)
+        )
+    ).scalar_one()
+    assert max_d1 == date(2026, 11, 5)
+
+    # 3. AMFI sync runs giving a point on date T+1 (2026-11-06)
+    row_t_plus_1 = (
+        "Open Ended Schemes(Equity Scheme - Large Cap Fund)\n"
+        "Test AMC\n"
+        "999100;INF999W01;-;Write Through Fund - Direct Plan - Growth;"
+        "Direct;Growth;102.50;06-Nov-2026\n"
+    )
+    mock_amfi = AsyncMock(spec=AmfiClient)
+    mock_amfi.fetch_navall.return_value = row_t_plus_1
+
+    sync_run = await sync_amfi_funds_and_nav(test_session, amfi_client=mock_amfi, min_schemes=1)
+    assert sync_run.status == "success"
+    assert sync_run.nav_rows_written == 1
+
+    # 4. Verify nav_history now ends on T+1 (2026-11-06) with NAV 102.50
+    max_d2 = (
+        await test_session.execute(
+            select(func.max(NavHistory.nav_date)).where(NavHistory.fund_id == fund.id)
+        )
+    ).scalar_one()
+    assert max_d2 == date(2026, 11, 6)
+
+    latest_point = (
+        await test_session.execute(
+            select(NavHistory).where(
+                NavHistory.fund_id == fund.id,
+                NavHistory.nav_date == date(2026, 11, 6),
+            )
+        )
+    ).scalar_one()
+    assert latest_point.nav == Decimal("102.50000000")

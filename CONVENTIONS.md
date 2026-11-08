@@ -98,10 +98,14 @@ All API responses must strictly follow the standard envelope:
 - **Locale & Currency**: Format dates and currency with explicit locale (`en-IN`) and timezone (`Asia/Kolkata`), or format strictly client-side to prevent UTC/IST server-client mismatches.
 
 ## 11. Fund Master & NAV Ingestion Architecture
-- **Classification Philosophy**:
-  - Deterministic table-driven mapping for all 104+ known AMFI scheme categories into standard `asset_class` (`equity`, `debt`, `hybrid`, `commodity`, `solution_oriented`, `other`) and `sub_category`.
-  - Name-based heuristics for specialized asset sub-classes (Gold/Silver ETFs and funds, Index funds, Arbitrage, International funds).
-  - Robust fallback to `asset_class="other"`, `sub_category="unknown"` to ensure ingestion never crashes on novel or unrecognized AMFI categories.
+- **Classification & Taxonomy**:
+  - Deterministic table-driven mapping for all known AMFI scheme categories into standard `asset_class` (`equity`, `debt`, `hybrid`, `gold`, `other`) and canonical `sub_category` tuples. See [docs/classification.md](docs/classification.md) for full taxonomy specification and distribution metrics.
+  - Multi-tier name heuristics for ambiguous categories (`Index Funds`, `Other ETFs`, `FoF Overseas`) with strict precedence (Debt -> Gold/Silver -> International -> Equity index). AMFI category classifications are never overridden by name rules.
+  - Robust fallback to `asset_class="other"`, `sub_category="unknown"` for unrecognized schemes.
+- **Sync Write Efficiency & Write-Through**:
+  - `upsert_funds_batch` uses PostgreSQL `ON CONFLICT DO UPDATE ... WHERE` evaluating `is_distinct_from` across payload columns and NAV values, eliminating whole-table rewrites when data is unchanged.
+  - `last_seen_at` is updated without row-churn via throttled touches (>=12h interval).
+  - Tracked fund daily NAVs write through directly to `nav_history`, ensuring historical timeseries never lags latest AMFI points.
 - **Distributed Ingestion Lock**:
   - Celery sync tasks (`sync_amfi_nav`) acquire a distributed Redis lock (`lock:sync_amfi_nav`) with a Lua owner check before running.
   - If a sync is already running, concurrent triggers gracefully yield and record a `SKIPPED` status in `nav_sync_runs`.

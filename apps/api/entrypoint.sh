@@ -11,7 +11,7 @@ if [ -f "$LOCK_FILE" ]; then
     INSTALLED_HASH=$(cat "$HASH_FILE" 2>/dev/null || true)
   fi
 
-  if [ "$CURRENT_HASH" != "$INSTALLED_HASH" ]; then
+  if [ "$CURRENT_HASH" != "$INSTALLED_HASH" ] || [ ! -d "/app/.venv/lib/python3.12/site-packages/fastapi" ]; then
     echo "[entrypoint] Dependency drift detected in .venv. Running uv sync --frozen..."
     uv sync --frozen
     echo "$CURRENT_HASH" > "$HASH_FILE"

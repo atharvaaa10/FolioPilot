@@ -5,7 +5,7 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import and_, case, func, literal_column, or_, select, update
-from sqlalchemy.dialects.postgresql import Insert, insert
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.engine.cursor import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -64,6 +64,32 @@ class FundRepository:
         )
         result = await session.execute(stmt)
         return result.rowcount if isinstance(result, CursorResult) else 0
+
+    @staticmethod
+    async def touch_last_seen(
+        session: AsyncSession,
+        scheme_codes: list[int],
+        seen_at: datetime,
+        cutoff: datetime,
+        batch_size: int = 5000,
+    ) -> int:
+        """Touch last_seen_at for funds that were seen and haven't been updated recently."""
+        if not scheme_codes:
+            return 0
+        total_touched = 0
+        for i in range(0, len(scheme_codes), batch_size):
+            chunk = scheme_codes[i : i + batch_size]
+            stmt = (
+                update(Fund)
+                .where(
+                    Fund.scheme_code.in_(chunk),
+                    Fund.last_seen_at < cutoff,
+                )
+                .values(last_seen_at=seen_at)
+            )
+            res = await session.execute(stmt)
+            total_touched += res.rowcount if isinstance(res, CursorResult) else 0
+        return total_touched
 
     @staticmethod
     async def search_funds(
@@ -168,7 +194,34 @@ class FundRepository:
 
         for i in range(0, len(records), batch_size):
             chunk = records[i : i + batch_size]
-            insert_stmt: Insert = insert(Fund).values(chunk)
+            insert_stmt = insert(Fund).values(chunk)
+
+            change_condition = or_(
+                Fund.name.is_distinct_from(insert_stmt.excluded.name),
+                Fund.name_normalized.is_distinct_from(insert_stmt.excluded.name_normalized),
+                Fund.isin_growth.is_distinct_from(insert_stmt.excluded.isin_growth),
+                Fund.isin_reinvest.is_distinct_from(insert_stmt.excluded.isin_reinvest),
+                Fund.amc.is_distinct_from(insert_stmt.excluded.amc),
+                Fund.scheme_type_raw.is_distinct_from(insert_stmt.excluded.scheme_type_raw),
+                Fund.category_raw.is_distinct_from(insert_stmt.excluded.category_raw),
+                Fund.asset_class.is_distinct_from(insert_stmt.excluded.asset_class),
+                Fund.sub_category.is_distinct_from(insert_stmt.excluded.sub_category),
+                Fund.classification_source.is_distinct_from(
+                    insert_stmt.excluded.classification_source
+                ),
+                Fund.plan_type.is_distinct_from(insert_stmt.excluded.plan_type),
+                Fund.option_type.is_distinct_from(insert_stmt.excluded.option_type),
+                Fund.is_active.is_(False),
+                Fund.latest_nav_date.is_(None),
+                and_(
+                    insert_stmt.excluded.latest_nav_date.is_not(None),
+                    insert_stmt.excluded.latest_nav_date > Fund.latest_nav_date,
+                ),
+                and_(
+                    insert_stmt.excluded.latest_nav_date == Fund.latest_nav_date,
+                    Fund.latest_nav.is_distinct_from(insert_stmt.excluded.latest_nav),
+                ),
+            )
 
             # Define conflict update mapping
             update_dict: dict[str, Any] = {
@@ -213,6 +266,7 @@ class FundRepository:
             conflict_stmt: Any = insert_stmt.on_conflict_do_update(
                 index_elements=["scheme_code"],
                 set_=update_dict,
+                where=change_condition,
             ).returning(literal_column("xmax = 0").label("is_insert"))
 
             res = await session.execute(conflict_stmt)

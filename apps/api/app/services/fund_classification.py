@@ -15,228 +15,274 @@ class FundClassification:
     option_type: str  # growth, idcw, unknown
 
 
-# Explicit table-driven mapping of AMFI category headers to (asset_class, sub_category)
-# When value is None, the category is an Index Fund or ETF that delegates to NAME rules.
-_CATEGORY_TABLE: dict[str, tuple[str, str | None] | None] = {
-    # Equity schemes
-    "Open Ended Schemes(Equity Scheme - Large Cap Fund)": ("equity", "large-cap"),
-    "Open Ended Schemes(Equity Schemes - Large Cap Fund)": ("equity", "large-cap"),
-    "Open Ended Schemes(Equity Scheme - Mid Cap Fund)": ("equity", "mid-cap"),
-    "Open Ended Schemes(Equity Schemes - Mid Cap Fund)": ("equity", "mid-cap"),
-    "Open Ended Schemes(Equity Scheme - Small Cap Fund)": ("equity", "small-cap"),
-    "Open Ended Schemes(Equity Schemes - Small Cap Fund)": ("equity", "small-cap"),
-    "Open Ended Schemes(Equity Scheme - Flexi Cap Fund)": ("equity", "flexi-cap"),
-    "Open Ended Schemes(Equity Schemes - Flexi Cap Fund)": ("equity", "flexi-cap"),
-    "Open Ended Schemes(Equity Scheme - Multi Cap Fund)": ("equity", "multi-cap"),
-    "Open Ended Schemes(Equity Schemes - Multi Cap Fund)": ("equity", "multi-cap"),
-    "Open Ended Schemes(Equity Scheme - Large & Mid Cap Fund)": ("equity", "large-and-mid-cap"),
-    "Open Ended Schemes(Equity Schemes - Large & Mid Cap Fund)": ("equity", "large-and-mid-cap"),
-    "Open Ended Schemes(Equity Scheme - Focused Fund)": ("equity", "focused"),
-    "Open Ended Schemes(Equity Schemes - Focused Fund)": ("equity", "focused"),
-    "Open Ended Schemes(Equity Scheme - Value Fund)": ("equity", "value"),
-    "Open Ended Schemes(Equity Schemes - Value Fund)": ("equity", "value"),
-    "Open Ended Schemes(Equity Scheme - Contra Fund)": ("equity", "contra"),
-    "Open Ended Schemes(Equity Schemes - Contra Fund)": ("equity", "contra"),
-    "Open Ended Schemes(Equity Scheme - Dividend Yield Fund)": ("equity", "dividend-yield"),
-    "Open Ended Schemes(Equity Schemes - Dividend Yield Fund)": ("equity", "dividend-yield"),
-    "Open Ended Schemes(Equity Scheme - ELSS)": ("equity", "elss"),
-    "Open Ended Schemes(Equity Schemes - ELSS- Tax Saver Fund)": ("equity", "elss"),
-    "Close Ended Schemes(ELSS)": ("equity", "elss"),
-    "Close Ended Schemes(Growth)": ("equity", "growth"),
-    "Open Ended Schemes(Growth)": ("equity", "growth"),
-    "Open Ended Schemes(Equity Scheme - Sectoral/ Thematic)": ("equity", "sectoral-thematic"),
-    "Open Ended Schemes(Equity Schemes - Sectoral Fund)": ("equity", "sectoral"),
-    "Open Ended Schemes(Equity Schemes - Thematic Fund)": ("equity", "thematic"),
-    # Debt schemes
-    "Open Ended Schemes(Debt Scheme - Overnight Fund)": ("debt", "overnight"),
-    "Open Ended Schemes(Debt Scheme - Liquid Fund)": ("debt", "liquid"),
-    "Open Ended Schemes(Debt Scheme - Ultra Short Duration Fund)": ("debt", "ultra-short-duration"),
-    "Open Ended Schemes(Debt Scheme - Low Duration Fund)": ("debt", "low-duration"),
-    "Open Ended Schemes(Debt Scheme - Money Market Fund)": ("debt", "money-market"),
-    "Open Ended Schemes(Debt Scheme - Short Duration Fund)": ("debt", "short-duration"),
-    "Open Ended Schemes(Debt Scheme - Medium Duration Fund)": ("debt", "medium-duration"),
-    "Open Ended Schemes(Debt Scheme - Medium to Long Duration Fund)": (
+def normalize_category(category_raw: str | None) -> str:
+    """Normalize category header: lowercase, collapsed whitespace, trimmed."""
+    if not category_raw:
+        return ""
+    return re.sub(r"\s+", " ", category_raw.strip().lower())
+
+
+# Explicit table-driven mapping of normalized AMFI category headers to (asset_class, sub_category).
+# When None, the category is an ambiguous Index Fund or ETF that delegates to NAME rules.
+_NORMALIZED_CATEGORY_TABLE: dict[str, tuple[str, str | None] | None] = {
+    # --- Equity Schemes ---
+    "open ended schemes(equity scheme - large cap fund)": ("equity", "large-cap"),
+    "open ended schemes(equity schemes - large cap fund)": ("equity", "large-cap"),
+    "open ended schemes(equity scheme - mid cap fund)": ("equity", "mid-cap"),
+    "open ended schemes(equity schemes - mid cap fund)": ("equity", "mid-cap"),
+    "open ended schemes(equity scheme - small cap fund)": ("equity", "small-cap"),
+    "open ended schemes(equity schemes - small cap fund)": ("equity", "small-cap"),
+    "open ended schemes(equity scheme - flexi cap fund)": ("equity", "flexi-cap"),
+    "open ended schemes(equity schemes - flexi cap fund)": ("equity", "flexi-cap"),
+    "open ended schemes(equity scheme - multi cap fund)": ("equity", "multi-cap"),
+    "open ended schemes(equity schemes - multi cap fund)": ("equity", "multi-cap"),
+    "open ended schemes(equity scheme - large & mid cap fund)": ("equity", "large-and-mid-cap"),
+    "open ended schemes(equity schemes - large & mid cap fund)": ("equity", "large-and-mid-cap"),
+    "open ended schemes(equity scheme - focused fund)": ("equity", "focused"),
+    "open ended schemes(equity schemes - focused fund)": ("equity", "focused"),
+    "open ended schemes(equity scheme - value fund)": ("equity", "value"),
+    "open ended schemes(equity schemes - value fund)": ("equity", "value"),
+    "open ended schemes(equity scheme - contra fund)": ("equity", "contra"),
+    "open ended schemes(equity schemes - contra fund)": ("equity", "contra"),
+    "open ended schemes(equity scheme - dividend yield fund)": ("equity", "dividend-yield"),
+    "open ended schemes(equity schemes - dividend yield fund)": ("equity", "dividend-yield"),
+    "open ended schemes(equity scheme - elss)": ("equity", "elss"),
+    "open ended schemes(equity schemes - elss- tax saver fund)": ("equity", "elss"),
+    "close ended schemes(elss)": ("equity", "elss"),
+    "close ended schemes(growth)": ("equity", "growth"),
+    "open ended schemes(growth)": ("equity", "growth"),
+    "open ended schemes(equity scheme - sectoral/ thematic)": ("equity", "sectoral-thematic"),
+    "open ended schemes(equity schemes - sectoral fund)": ("equity", "sectoral"),
+    "open ended schemes(equity schemes - thematic fund)": ("equity", "thematic"),
+    # New specific index/etf headings that directly state class
+    "open ended schemes(index funds - equity funds)": ("equity", "index"),
+    "open ended schemes(exchange traded funds (etfs) - equity etf)": ("equity", "index"),
+    "open ended schemes(exchange traded funds (etfs) - etfs investing overseas)": (
+        "equity",
+        "international",
+    ),
+    # --- Debt Schemes ---
+    "open ended schemes(debt scheme - overnight fund)": ("debt", "overnight"),
+    "open ended schemes(debt scheme - liquid fund)": ("debt", "liquid"),
+    "open ended schemes(debt scheme - ultra short duration fund)": (
+        "debt",
+        "ultra-short-duration",
+    ),
+    "open ended schemes(debt scheme - low duration fund)": ("debt", "low-duration"),
+    "open ended schemes(debt scheme - money market fund)": ("debt", "money-market"),
+    "open ended schemes(debt scheme - short duration fund)": ("debt", "short-duration"),
+    "open ended schemes(debt scheme - medium duration fund)": ("debt", "medium-duration"),
+    "open ended schemes(debt scheme - medium to long duration fund)": (
         "debt",
         "medium-to-long-duration",
     ),
-    "Open Ended Schemes(Debt Scheme - Long Duration Fund)": ("debt", "long-duration"),
-    "Open Ended Schemes(Debt Scheme - Dynamic Bond)": ("debt", "dynamic-bond"),
-    "Open Ended Schemes(Debt Scheme - Corporate Bond Fund)": ("debt", "corporate-bond"),
-    "Open Ended Schemes(Debt Scheme - Credit Risk Fund)": ("debt", "credit-risk"),
-    "Open Ended Schemes(Debt Scheme - Banking and PSU Fund)": ("debt", "banking-and-psu"),
-    "Open Ended Schemes(Debt Scheme - Gilt Fund)": ("debt", "gilt"),
-    "Open Ended Schemes(Gilt)": ("debt", "gilt"),
-    "Open Ended Schemes(Income)": ("debt", "income"),
-    "Close Ended Schemes(Income)": ("debt", "income"),
-    "Close Ended Schemes(Income/Debt Oriented Schemes - Fixed Term Plan)": (
+    "open ended schemes(debt scheme - long duration fund)": ("debt", "long-duration"),
+    "open ended schemes(debt scheme - dynamic bond)": ("debt", "dynamic-bond"),
+    "open ended schemes(debt scheme - corporate bond fund)": ("debt", "corporate-bond"),
+    "open ended schemes(debt scheme - credit risk fund)": ("debt", "credit-risk"),
+    "open ended schemes(debt scheme - banking and psu fund)": ("debt", "banking-and-psu"),
+    "open ended schemes(debt scheme - gilt fund)": ("debt", "gilt"),
+    "open ended schemes(gilt)": ("debt", "gilt"),
+    "open ended schemes(income)": ("debt", "income"),
+    "close ended schemes(income)": ("debt", "income"),
+    "close ended schemes(income/debt oriented schemes - fixed term plan)": (
         "debt",
         "fixed-term-plan",
     ),
-    "Close Ended Schemes(Income/Debt Oriented Schemes - Other Debt Scheme)": (
+    "close ended schemes(income/debt oriented schemes - other debt scheme)": (
         "debt",
         "other-debt",
     ),
-    "Interval Fund Schemes(Income)": ("debt", "interval-income"),
-    "Open Ended Schemes(Income/Debt Oriented Schemes - 10-year Constant Maturity Gilt Fund)": (
+    "interval fund schemes(income)": ("debt", "interval-income"),
+    "open ended schemes(income/debt oriented schemes - 10-year constant maturity gilt fund)": (
         "debt",
         "10-year-gilt",
     ),
-    "Open Ended Schemes(Income/Debt Oriented Schemes - Banking and PSU Debt Fund)": (
+    "open ended schemes(income/debt oriented schemes - banking and psu debt fund)": (
         "debt",
         "banking-and-psu",
     ),
-    "Open Ended Schemes(Income/Debt Oriented Schemes - Corporate Bond Fund)": (
+    "open ended schemes(income/debt oriented schemes - corporate bond fund)": (
         "debt",
         "corporate-bond",
     ),
-    "Open Ended Schemes(Income/Debt Oriented Schemes - Credit Risk Fund)": (
+    "open ended schemes(income/debt oriented schemes - credit risk fund)": (
         "debt",
         "credit-risk",
     ),
-    "Open Ended Schemes(Income/Debt Oriented Schemes - Dynamic Term Fund)": (
+    "open ended schemes(income/debt oriented schemes - dynamic term fund)": (
         "debt",
         "dynamic-term",
     ),
-    "Open Ended Schemes(Income/Debt Oriented Schemes - Floating Interest Rates Fund)": (
+    "open ended schemes(income/debt oriented schemes - floating interest rates fund)": (
         "debt",
         "floater",
     ),
-    "Open Ended Schemes(Income/Debt Oriented Schemes - Gilt Fund)": ("debt", "gilt"),
-    "Open Ended Schemes(Income/Debt Oriented Schemes - Liquid Fund)": ("debt", "liquid"),
-    "Open Ended Schemes(Income/Debt Oriented Schemes - Long Term Fund)": ("debt", "long-term"),
-    "Open Ended Schemes(Income/Debt Oriented Schemes - Medium Term Fund)": ("debt", "medium-term"),
-    "Open Ended Schemes(Income/Debt Oriented Schemes - Medium to Long Term Fund)": (
+    "open ended schemes(income/debt oriented schemes - gilt fund)": ("debt", "gilt"),
+    "open ended schemes(income/debt oriented schemes - liquid fund)": ("debt", "liquid"),
+    "open ended schemes(income/debt oriented schemes - long term fund)": ("debt", "long-term"),
+    "open ended schemes(income/debt oriented schemes - medium term fund)": (
+        "debt",
+        "medium-term",
+    ),
+    "open ended schemes(income/debt oriented schemes - medium to long term fund)": (
         "debt",
         "medium-to-long-term",
     ),
-    "Open Ended Schemes(Income/Debt Oriented Schemes - Money Market Fund)": (
+    "open ended schemes(income/debt oriented schemes - money market fund)": (
         "debt",
         "money-market",
     ),
-    "Open Ended Schemes(Income/Debt Oriented Schemes - Overnight Fund)": ("debt", "overnight"),
-    "Open Ended Schemes(Income/Debt Oriented Schemes - Sectoral Fund)": ("debt", "sectoral"),
-    "Open Ended Schemes(Income/Debt Oriented Schemes - Short Term Fund)": ("debt", "short-term"),
-    "Open Ended Schemes(Income/Debt Oriented Schemes - Ultra Short Term Fund)": (
+    "open ended schemes(income/debt oriented schemes - overnight fund)": ("debt", "overnight"),
+    "open ended schemes(income/debt oriented schemes - sectoral fund)": ("debt", "sectoral"),
+    "open ended schemes(income/debt oriented schemes - short term fund)": (
+        "debt",
+        "short-term",
+    ),
+    "open ended schemes(income/debt oriented schemes - ultra short term fund)": (
         "debt",
         "ultra-short-term",
     ),
-    "Open Ended Schemes(Income/Debt Oriented Schemes - Ultra Short to Short Term Fund)": (
+    "open ended schemes(income/debt oriented schemes - ultra short to short term fund)": (
         "debt",
         "ultra-short-to-short-term",
     ),
-    # Hybrid schemes
-    "Open Ended Schemes(Hybrid Scheme - Conservative Hybrid Fund)": (
+    "open ended schemes(index funds - debt funds)": ("debt", "index-debt"),
+    "open ended schemes(exchange traded funds (etfs) - debt etf)": ("debt", "index-debt"),
+    # --- Hybrid Schemes ---
+    "open ended schemes(hybrid scheme - conservative hybrid fund)": (
         "hybrid",
         "conservative-hybrid",
     ),
-    "Open Ended Schemes(Hybrid Schemes - Conservative Hybrid Fund)": (
+    "open ended schemes(hybrid schemes - conservative hybrid fund)": (
         "hybrid",
         "conservative-hybrid",
     ),
-    "Open Ended Schemes(Hybrid Scheme - Balanced Hybrid Fund)": ("hybrid", "balanced-hybrid"),
-    "Open Ended Schemes(Hybrid Schemes - Balanced Hybrid Fund)": ("hybrid", "balanced-hybrid"),
-    "Open Ended Schemes(Hybrid Scheme - Aggressive Hybrid Fund)": ("hybrid", "aggressive-hybrid"),
-    "Open Ended Schemes(Hybrid Schemes - Aggressive Hybrid Fund)": (
+    "open ended schemes(hybrid scheme - balanced hybrid fund)": ("hybrid", "balanced-hybrid"),
+    "open ended schemes(hybrid schemes - balanced hybrid fund)": ("hybrid", "balanced-hybrid"),
+    "open ended schemes(hybrid scheme - aggressive hybrid fund)": (
         "hybrid",
         "aggressive-hybrid",
     ),
-    "Open Ended Schemes(Hybrid Scheme - Dynamic Asset Allocation or Balanced Advantage)": (
+    "open ended schemes(hybrid schemes - aggressive hybrid fund)": (
+        "hybrid",
+        "aggressive-hybrid",
+    ),
+    "open ended schemes(hybrid scheme - dynamic asset allocation or balanced advantage)": (
         "hybrid",
         "balanced-advantage",
     ),
-    "Open Ended Schemes(Hybrid Schemes - Balanced Advantage Fund/ Dynamic Asset Allocation)": (
+    "open ended schemes(hybrid schemes - balanced advantage fund/ dynamic asset allocation)": (
         "hybrid",
         "balanced-advantage",
     ),
-    "Open Ended Schemes(Hybrid Scheme - Multi Asset Allocation)": (
+    "open ended schemes(hybrid scheme - multi asset allocation)": (
         "hybrid",
         "multi-asset-allocation",
     ),
-    "Open Ended Schemes(Hybrid Schemes - Multi Asset Allocation Fund)": (
+    "open ended schemes(hybrid schemes - multi asset allocation fund)": (
         "hybrid",
         "multi-asset-allocation",
     ),
-    "Open Ended Schemes(Hybrid Scheme - Arbitrage Fund)": ("hybrid", "arbitrage"),
-    "Open Ended Schemes(Hybrid Schemes - Arbitrage Fund)": ("hybrid", "arbitrage"),
-    "Open Ended Schemes(Hybrid Scheme - Equity Savings)": ("hybrid", "equity-savings"),
-    "Open Ended Schemes(Hybrid Schemes - Equity Savings Fund)": ("hybrid", "equity-savings"),
-    # Gold categories
-    "Open Ended Schemes(Exchange Traded Funds (ETFs) - Gold ETF)": ("gold", "gold-etf"),
-    "Open Ended Schemes(Other Scheme - Gold ETF)": ("gold", "gold-etf"),
-    # Solution Oriented, FoF, and Life Cycle (mapped to other)
-    "Open Ended Schemes(Solution Oriented Scheme - Children’s Fund)": (
+    "open ended schemes(hybrid scheme - arbitrage fund)": ("hybrid", "arbitrage"),
+    "open ended schemes(hybrid schemes - arbitrage fund)": ("hybrid", "arbitrage"),
+    "open ended schemes(hybrid scheme - equity savings)": ("hybrid", "equity-savings"),
+    "open ended schemes(hybrid schemes - equity savings fund)": ("hybrid", "equity-savings"),
+    "open ended schemes(index funds - hybrid fund)": ("hybrid", "index-hybrid"),
+    "open ended schemes(exchange traded funds (etfs) - hybrid etf)": (
+        "hybrid",
+        "index-hybrid",
+    ),
+    # --- Gold & Commodities ---
+    "open ended schemes(exchange traded funds (etfs) - gold etf)": ("gold", "gold-etf"),
+    "open ended schemes(other scheme - gold etf)": ("gold", "gold-etf"),
+    "open ended schemes(exchange traded funds (etfs) - silver etf)": ("other", "silver-etf"),
+    # --- Other Categories ---
+    "open ended schemes(solution oriented scheme - children’s fund)": (
         "other",
         "solution-oriented",
     ),
-    "Open Ended Schemes(Solution Oriented Scheme - Retirement Fund)": (
+    "open ended schemes(solution oriented scheme - retirement fund)": (
         "other",
         "solution-oriented",
     ),
-    "Open Ended Schemes(Solution Oriented Schemes ** - Retirement Fund)": (
+    "open ended schemes(solution oriented schemes ** - retirement fund)": (
         "other",
         "solution-oriented",
     ),
-    "Open Ended Schemes(Children’s Fund - Childrens' Fund)": ("other", "solution-oriented"),
-    "Open Ended Schemes(Fund of Funds Scheme (Domestic) - Fund of Funds Scheme (Domestic))": (
+    "open ended schemes(children’s fund - childrens' fund)": (
+        "other",
+        "solution-oriented",
+    ),
+    "open ended schemes(fund of funds scheme (domestic) - fund of funds scheme (domestic))": (
         "other",
         "fof",
     ),
-    "Open Ended Schemes(Other Scheme - FoF Domestic)": ("other", "fof"),
-    "Open Ended Schemes(Other Scheme - FoF Overseas)": ("other", "fof"),
-    "Open Ended Schemes(Overseas Fund of Funds - Fund of Funds investing overseas)": (
+    "open ended schemes(other scheme - fof domestic)": ("other", "fof"),
+    "open ended schemes(other scheme - fof overseas)": ("other", "fof"),
+    "open ended schemes(overseas fund of funds - fund of funds investing overseas)": (
         "other",
         "fof",
     ),
-    "Open Ended Schemes(Exchange Traded Funds (ETFs) - Silver ETF)": ("other", "silver-etf"),
-    "Open Ended Schemes(Life Cycle Funds - Life Cycle Fund with Maturity of 5 Years)": (
+    "open ended schemes(life cycle funds - life cycle fund with maturity of 5 years)": (
         "other",
         "life-cycle",
     ),
-    "Open Ended Schemes(Life Cycle Funds - Life Cycle Fund with Maturity of 10 Years)": (
+    "open ended schemes(life cycle funds - life cycle fund with maturity of 10 years)": (
         "other",
         "life-cycle",
     ),
-    "Open Ended Schemes(Life Cycle Funds - Life Cycle Fund with Maturity of 15 Years)": (
+    "open ended schemes(life cycle funds - life cycle fund with maturity of 15 years)": (
         "other",
         "life-cycle",
     ),
-    "Open Ended Schemes(Life Cycle Funds - Life Cycle Fund with Maturity of 30 Years)": (
+    "open ended schemes(life cycle funds - life cycle fund with maturity of 30 years)": (
         "other",
         "life-cycle",
     ),
-    # Index Funds and ETFs that delegate to NAME rules (None)
-    "Open Ended Schemes(Other Scheme - Index Funds)": None,
-    "Open Ended Schemes(Index Funds - Equity Funds)": None,
-    "Open Ended Schemes(Index Funds - Debt Funds)": None,
-    "Open Ended Schemes(Index Funds - Hybrid Fund)": None,
-    "Open Ended Schemes(Other Scheme - Other  ETFs)": None,
-    "Open Ended Schemes(Exchange Traded Funds (ETFs) - Equity ETF)": None,
-    "Open Ended Schemes(Exchange Traded Funds (ETFs) - Debt ETF)": None,
-    "Open Ended Schemes(Exchange Traded Funds (ETFs) - Hybrid ETF)": None,
-    "Open Ended Schemes(Exchange Traded Funds (ETFs) - Other ETF)": None,
-    "Open Ended Schemes(Exchange Traded Funds (ETFs) - ETFs investing overseas)": None,
+    # --- Ambiguous categories that delegate strictly to NAME rules (mapped to None) ---
+    "open ended schemes(other scheme - index funds)": None,
+    "open ended schemes(other scheme - other etfs)": None,
+    "open ended schemes(exchange traded funds (etfs) - other etf)": None,
 }
 
-_GOLD_NAME_RE = re.compile(r"\bgold\b", re.IGNORECASE)
+# --- Strict Name Heuristic Patterns for Ambiguous Headings ---
 
-_EQUITY_INDEX_RE = re.compile(
+# (1) Debt keywords: Bond, G-Sec, Gilt, SDL, State Development, Target Maturity,
+#     CRISIL-IBX, Debt Index, Treasury, Money Market, Liquid, Overnight, AAA
+_NAME_DEBT_RE = re.compile(
     r"\b("
-    r"nifty\s*50|nifty50|sensex|nifty\s*next\s*50|nifty\s*midcap|nifty\s*smallcap|"
-    r"nifty\s*100|nifty\s*200|nifty\s*500|bse\s*100|bse\s*200|bse\s*500|"
-    r"nifty\s*bank|bank\s*nifty|nifty\s*it|nifty\s*auto|nifty\s*metal|nifty\s*pharma|"
-    r"nifty\s*infra|nifty\s*fmcg|nifty\s*energy"
+    r"bond|g\s*-?\s*sec|gilt|sdl|state\s+development|target\s+maturity|"
+    r"crisil\s*-?\s*ibx|debt\s+index|treasury|money\s+market|liquid|overnight|aaa"
     r")\b",
     re.IGNORECASE,
 )
 
-_DEBT_NAME_RE = re.compile(
-    r"\b(g\s*-?\s*sec|gilt|sdl|liquid|bharat\s*bond|cpse|target\s*maturity|treasury|t\s*-?\s*bill)\b",
+# (2) Gold and Silver keywords
+_NAME_GOLD_RE = re.compile(r"\bgold\b", re.IGNORECASE)
+_NAME_SILVER_RE = re.compile(r"\bsilver\b", re.IGNORECASE)
+
+# (3) International index keywords: Nasdaq, S&P 500, Hang Seng, NYSE FANG, etc.
+_NAME_INTERNATIONAL_RE = re.compile(
+    r"\b(nasdaq|s&p\s*500|sp500|hang\s*seng|nyse\s*fang\+?|dow\s*jones)\b",
     re.IGNORECASE,
 )
 
+# (4) Known Equity index words: Nifty, Sensex, BSE, Nifty Next 50, Midcap, Smallcap,
+#     LargeMidcap, Total Market, Alpha, Quality, Value, Momentum, Low Volatility,
+#     sector words such as Bank, IT, Healthcare, Pharma, Manufacturing, Insurance, PSU
+_NAME_EQUITY_RE = re.compile(
+    r"\b("
+    r"nifty|sensex|bse|midcap|smallcap|largemidcap|large\s*midcap|total\s*market|"
+    r"alpha|quality|value|momentum|low\s*volatility|bank|it|healthcare|pharma|"
+    r"manufacturing|insurance|psu"
+    r")\b",
+    re.IGNORECASE,
+)
+
+# Plan & Option regexes
 _DIRECT_RE = re.compile(r"\b(direct|dir)\b", re.IGNORECASE)
 _REGULAR_RE = re.compile(r"\b(regular|reg)\b", re.IGNORECASE)
-
 _GROWTH_RE = re.compile(r"\b(growth|gr)\b", re.IGNORECASE)
 _IDCW_RE = re.compile(
     r"\b(idcw|dividend|div|div\.|payout|reinvestment|reinvest|bonus)\b",
@@ -271,15 +317,41 @@ def derive_option_type(name: str, option_raw: str | None = None) -> str:
     return "unknown"
 
 
-def _classify_by_name(name: str) -> tuple[str, str | None, str]:
-    """Classify by name rules: gold, known broad equity index, or known debt."""
-    if _GOLD_NAME_RE.search(name):
-        return "gold", "gold", "name_rule"
-    if _EQUITY_INDEX_RE.search(name):
-        return "equity", "index", "name_rule"
-    if _DEBT_NAME_RE.search(name):
+def _classify_ambiguous_by_name(name: str) -> tuple[str, str | None, str]:
+    """Classify ambiguous index/ETF schemes using strict 4-level precedence.
+
+    (1) Debt keywords -> debt / index-debt
+    (2) Gold -> gold / gold-etf; Silver -> other / silver
+    (3) International -> equity / international
+    (4) Known equity index words -> equity / index
+    Everything else stays other with source unknown.
+    """
+    clean_name = name.lower()
+
+    # Precedence 1: Debt keywords
+    if _NAME_DEBT_RE.search(clean_name):
         return "debt", "index-debt", "name_rule"
-    return "other", None, "unknown"
+
+    # Precedence 2: Gold & Silver
+    if _NAME_GOLD_RE.search(clean_name):
+        return "gold", "gold-etf", "name_rule"
+    if _NAME_SILVER_RE.search(clean_name):
+        return "other", "silver", "name_rule"
+
+    # Check for mixed domestic & global mandates (e.g. Edelweiss MSCI India Domestic & World)
+    # which deliberately remain other/unknown
+    if "domestic & world" in clean_name or "domestic and world" in clean_name:
+        return "other", "unknown", "unknown"
+
+    # Precedence 3: International
+    if _NAME_INTERNATIONAL_RE.search(clean_name):
+        return "equity", "international", "name_rule"
+
+    # Precedence 4: Known equity index words
+    if _NAME_EQUITY_RE.search(clean_name):
+        return "equity", "index", "name_rule"
+
+    return "other", "unknown", "unknown"
 
 
 def classify_fund(
@@ -288,16 +360,23 @@ def classify_fund(
     plan_raw: str | None = None,
     option_raw: str | None = None,
 ) -> FundClassification:
-    """Classify fund into asset class, subcategory, source, plan, and option."""
+    """Classify fund into asset class, subcategory, source, plan, and option.
+
+    Guarantees:
+    - Never uses name rules if category gives a definite answer.
+    - Normalizes category whitespace and casing.
+    - Uses strict precedence for ambiguous headings.
+    - Resulting (asset_class, sub_category) is in CANONICAL_CLASSIFICATIONS.
+    """
     plan_type = derive_plan_type(name, plan_raw)
     option_type = derive_option_type(name, option_raw)
 
-    clean_category = category_raw.strip()
+    norm_category = normalize_category(category_raw)
 
-    if clean_category in _CATEGORY_TABLE:
-        mapping = _CATEGORY_TABLE[clean_category]
+    if norm_category in _NORMALIZED_CATEGORY_TABLE:
+        mapping = _NORMALIZED_CATEGORY_TABLE[norm_category]
         if mapping is not None:
-            # Explicit category mapping
+            # Explicit category mapping - name rules are NEVER consulted
             asset_class, sub_category = mapping
             return FundClassification(
                 asset_class=asset_class,
@@ -306,8 +385,8 @@ def classify_fund(
                 plan_type=plan_type,
                 option_type=option_type,
             )
-        # Category indicates Index Fund / ETF; delegate to name rules
-        asset_class, sub_category, source = _classify_by_name(name)
+        # Category indicates an ambiguous Index Fund / ETF; delegate to name rules
+        asset_class, sub_category, source = _classify_ambiguous_by_name(name)
         return FundClassification(
             asset_class=asset_class,
             sub_category=sub_category,
@@ -316,12 +395,11 @@ def classify_fund(
             option_type=option_type,
         )
 
-    # Category not in table or unknown: try name rules, fallback to other/unknown
-    asset_class, sub_category, source = _classify_by_name(name)
+    # Category not in table: fallback directly to other / unknown (name rules not used)
     return FundClassification(
-        asset_class=asset_class,
-        sub_category=sub_category,
-        classification_source=source,
+        asset_class="other",
+        sub_category="unknown",
+        classification_source="unknown",
         plan_type=plan_type,
         option_type=option_type,
     )

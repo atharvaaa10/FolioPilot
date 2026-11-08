@@ -95,6 +95,17 @@ async def backfill_fund_nav_history(
         fund.latest_nav = newest_point.nav
         fund.latest_nav_date = newest_point.nav_date
         await session.flush()
+    elif fund.latest_nav is not None and fund.latest_nav_date is not None:
+        if fund.latest_nav_date > newest_point.nav_date:
+            extra_record = [
+                {
+                    "fund_id": fund.id,
+                    "nav_date": fund.latest_nav_date,
+                    "nav": fund.latest_nav,
+                }
+            ]
+            extra_written = await NavHistoryRepository.upsert_nav_batch(session, extra_record)
+            nav_rows_written += extra_written
 
     await SyncRunRepository.finish_run(
         session,
