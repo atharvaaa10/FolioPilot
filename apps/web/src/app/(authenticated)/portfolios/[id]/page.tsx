@@ -12,6 +12,7 @@ import {
   Loader2,
   Plus,
   PlusCircle,
+  RefreshCw,
   Search,
   Trash2,
 } from "lucide-react";
@@ -23,11 +24,14 @@ import {
   type PortfolioDetail,
   type TargetAllocation,
   type TransactionItem,
+  type TransactionListResponse,
   type UpdateTransactionPayload,
 } from "@/lib/portfolios-api";
+import { fundsApi } from "@/lib/funds-api";
 import {
   formatDate,
   formatInr,
+  formatNav,
   formatUnits,
   getAssetClassBadge,
   getTodayIsoDate,
@@ -35,7 +39,6 @@ import {
 import { evaluateTargets, VALID_ASSET_CLASSES } from "@/lib/targets";
 import { deriveTransactionValues } from "@/lib/transaction-hint";
 import { useDebounce } from "@/hooks/use-debounce";
-import { apiClient } from "@/lib/api";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -87,6 +90,7 @@ export default function PortfolioDetailPage({ params }: PageProps) {
     data: portfolio,
     isLoading: isPortfolioLoading,
     error: portfolioError,
+    refetch: refetchPortfolio,
   } = useQuery<PortfolioDetail>({
     queryKey: ["portfolio", id],
     queryFn: () => portfoliosApi.get(id),
@@ -96,6 +100,8 @@ export default function PortfolioDetailPage({ params }: PageProps) {
   const {
     data: holdingsData,
     isLoading: isHoldingsLoading,
+    error: holdingsError,
+    refetch: refetchHoldings,
   } = useQuery<HoldingsResponse>({
     queryKey: ["holdings", id],
     queryFn: () => portfoliosApi.getHoldings(id),
@@ -103,12 +109,16 @@ export default function PortfolioDetailPage({ params }: PageProps) {
 
   // Transactions Query
   const {
-    data: transactions = [],
+    data: transactionsData,
     isLoading: isTxnsLoading,
-  } = useQuery<TransactionItem[]>({
+    error: txnsError,
+    refetch: refetchTxns,
+  } = useQuery<TransactionListResponse>({
     queryKey: ["transactions", id],
     queryFn: () => portfoliosApi.listTransactions(id),
   });
+
+  const transactions = transactionsData?.items || [];
 
   // Target Allocations State
   const [targetRows, setTargetRows] = useState<TargetAllocation[]>([]);
@@ -117,10 +127,11 @@ export default function PortfolioDetailPage({ params }: PageProps) {
 
   // Sync initial targets
   useEffect(() => {
-    if (portfolio?.targets) {
-      setTargetRows(portfolio.targets);
+    if (portfolio) {
+      setTargetRows(portfolio.targets || []);
+      setHasTargetsChanged(false);
     }
-  }, [portfolio?.targets]);
+  }, [portfolio]);
 
   const targetsEvaluation = evaluateTargets(targetRows);
 
@@ -130,7 +141,7 @@ export default function PortfolioDetailPage({ params }: PageProps) {
     onSuccess: (savedTargets) => {
       setTargetRows(savedTargets);
       setHasTargetsChanged(false);
-      setTargetsMessage("Target allocations updated successfully.");
+      setTargetsMessage("Target allocations saved successfully.");
       queryClient.invalidateQueries({ queryKey: ["portfolio", id] });
       setTimeout(() => setTargetsMessage(null), 3000);
     },
@@ -145,7 +156,7 @@ export default function PortfolioDetailPage({ params }: PageProps) {
   const debouncedFundSearch = useDebounce(fundSearch, 300);
   const [selectedFund, setSelectedFund] = useState<FundSearchItem | null>(null);
   const [manualSchemeCode, setManualSchemeCode] = useState("");
-  const [txnType, setTxnType] = useState<"BUY" | "SELL">("BUY");
+  const [txnType, setTxnType] = useState<"buy" | "sell">("buy");
   const [txnDate, setTxnDate] = useState(todayIso);
   const [txnUnits, setTxnUnits] = useState("");
   const [txnNav, setTxnNav] = useState("");
@@ -167,10 +178,12 @@ export default function PortfolioDetailPage({ params }: PageProps) {
   const { data: searchResults, isLoading: isSearchingFunds } =
     useQuery<FundSearchResponse>({
       queryKey: ["fund-picker", debouncedFundSearch],
-      queryFn: () =>
-        apiClient<FundSearchResponse>(
-          `/api/v1/funds/search?q=${encodeURIComponent(debouncedFundSearch)}&limit=8`,
-        ),
+      queryFn: () => {
+        const p = new URLSearchParams();
+        p.set("q", debouncedFundSearch);
+        p.set("limit", "8");
+        return fundsApi.searchFunds(p);
+      },
       enabled: isAddTxnOpen && debouncedFundSearch.trim().length >= 2,
     });
 
@@ -248,13 +261,60 @@ export default function PortfolioDetailPage({ params }: PageProps) {
     setFundSearch("");
     setSelectedFund(null);
     setManualSchemeCode("");
-    setTxnType("BUY");
+    setTxnType("buy");
     setTxnDate(todayIso);
     setTxnUnits("");
     setTxnNav("");
     setTxnAmount("");
     setTxnNotes("");
     setTxnError(null);
+  };
+
+  const handleTxnSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setTxnError(null);
+
+    const schemeCodeNum = selectedFund
+      ? selectedFund.scheme_code
+      : parseInt(manualSchemeCode, 10);
+
+    if (!schemeCodeNum || Number.isNaN(schemeCodeNum)) {
+      setTxnError("Please select a mutual fund scheme or enter a valid scheme code.");
+      return;
+    }
+
+    if (!hintResult.isValid) {
+      setTxnError(hintResult.hintMessage || "Please supply valid numeric values.");
+      return;
+    }
+
+    addTxnMutation.mutate({
+      scheme_code: schemeCodeNum,
+      txn_type: txnType,
+      txn_date: txnDate,
+      units: txnUnits ? txnUnits : undefined,
+      nav: txnNav ? txnNav : undefined,
+      amount: txnAmount ? txnAmount : undefined,
+      notes: txnNotes || undefined,
+    });
+  };
+
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setEditError(null);
+
+    if (!editHintResult.isValid) {
+      setEditError(editHintResult.hintMessage || "Please supply valid numeric values.");
+      return;
+    }
+
+    updateTxnMutation.mutate({
+      txn_date: editDate,
+      units: editUnits ? editUnits : undefined,
+      nav: editNav ? editNav : undefined,
+      amount: editAmount ? editAmount : undefined,
+      notes: editNotes,
+    });
   };
 
   const openEditModal = (txn: TransactionItem) => {
@@ -268,153 +328,63 @@ export default function PortfolioDetailPage({ params }: PageProps) {
     setIsEditTxnOpen(true);
   };
 
-  const handleTxnSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setTxnError(null);
-
-    const schemeCode = selectedFund
-      ? selectedFund.scheme_code
-      : parseInt(manualSchemeCode.trim(), 10);
-
-    if (!schemeCode || Number.isNaN(schemeCode)) {
-      setTxnError("Please select a mutual fund or enter a valid AMFI scheme code.");
-      return;
-    }
-
-    if (!txnDate) {
-      setTxnError("Transaction date is required.");
-      return;
-    }
-
-    const filledCount = [txnUnits, txnNav, txnAmount].filter(
-      (v) => v.trim() !== "",
-    ).length;
-
-    if (filledCount < 2) {
-      setTxnError("Please fill at least two of Units, NAV, and Amount.");
-      return;
-    }
-
-    if (!hintResult.isValid) {
-      setTxnError(hintResult.error || "Invalid transaction values.");
-      return;
-    }
-
-    let finalUnits = txnUnits.trim() || undefined;
-    let finalNav = txnNav.trim() || undefined;
-    let finalAmount = txnAmount.trim() || undefined;
-
-    if (hintResult.derivedField === "amount" && hintResult.derivedValue) {
-      finalAmount = hintResult.derivedValue;
-    } else if (hintResult.derivedField === "units" && hintResult.derivedValue) {
-      finalUnits = hintResult.derivedValue;
-    } else if (hintResult.derivedField === "nav" && hintResult.derivedValue) {
-      finalNav = hintResult.derivedValue;
-    }
-
-    addTxnMutation.mutate({
-      scheme_code: schemeCode,
-      txn_type: txnType,
-      txn_date: txnDate,
-      units: finalUnits,
-      nav: finalNav,
-      amount: finalAmount,
-      notes: txnNotes.trim() || undefined,
-    });
-  };
-
-  const handleEditSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingTxn) return;
-    setEditError(null);
-
-    if (!editDate) {
-      setEditError("Transaction date is required.");
-      return;
-    }
-
-    const filledCount = [editUnits, editNav, editAmount].filter(
-      (v) => v.trim() !== "",
-    ).length;
-
-    if (filledCount < 2) {
-      setEditError("Please fill at least two of Units, NAV, and Amount.");
-      return;
-    }
-
-    if (!editHintResult.isValid) {
-      setEditError(editHintResult.error || "Invalid transaction values.");
-      return;
-    }
-
-    let finalUnits = editUnits.trim() || undefined;
-    let finalNav = editNav.trim() || undefined;
-    let finalAmount = editAmount.trim() || undefined;
-
-    if (editHintResult.derivedField === "amount" && editHintResult.derivedValue) {
-      finalAmount = editHintResult.derivedValue;
-    } else if (editHintResult.derivedField === "units" && editHintResult.derivedValue) {
-      finalUnits = editHintResult.derivedValue;
-    } else if (editHintResult.derivedField === "nav" && editHintResult.derivedValue) {
-      finalNav = editHintResult.derivedValue;
-    }
-
-    updateTxnMutation.mutate({
-      txn_date: editDate,
-      units: finalUnits,
-      nav: finalNav,
-      amount: finalAmount,
-      notes: editNotes.trim() || undefined,
-    });
-  };
-
+  // Top-level Loading State
   if (isPortfolioLoading) {
     return (
-      <div className="container mx-auto flex h-96 items-center justify-center px-4">
+      <div className="flex h-64 items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
+  // Top-level Error State with Retry Button
   if (portfolioError || !portfolio) {
     return (
-      <div className="container mx-auto max-w-2xl px-4 py-16">
+      <div className="space-y-4">
+        <Link
+          href="/portfolios"
+          className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Portfolios
+        </Link>
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Portfolio Not Found</AlertTitle>
-          <AlertDescription>
-            {(portfolioError as { message?: string })?.message ||
-              "The requested portfolio could not be found or you do not have permission to view it."}
+          <AlertTitle>Error Loading Portfolio</AlertTitle>
+          <AlertDescription className="space-y-2">
+            <p>{portfolioError?.message || "Failed to load portfolio."}</p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refetchPortfolio()}
+              className="mt-2 inline-flex items-center gap-1.5"
+            >
+              <RefreshCw className="h-3.5 w-3.5" /> Retry
+            </Button>
           </AlertDescription>
         </Alert>
-        <div className="mt-6 text-center">
-          <Link href="/portfolios">
-            <Button variant="outline" className="inline-flex items-center gap-2">
-              <ArrowLeft className="h-4 w-4" />
-              <span>Back to Portfolios</span>
-            </Button>
-          </Link>
-        </div>
       </div>
     );
   }
 
   const holdings = holdingsData?.items || [];
-  const totals = holdingsData?.totals;
+  const holdingsTotals = holdingsData?.totals;
 
   return (
-    <div className="container mx-auto space-y-8 px-4 py-8 sm:px-8">
+    <div className="space-y-8">
       {/* Top Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <Link
             href="/portfolios"
-            className="mb-2 inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+            className="mb-2 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"
           >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            <span>Portfolios</span>
+            <ArrowLeft className="h-4 w-4" />
+            Back to Portfolios
           </Link>
-          <h1 className="text-3xl font-bold tracking-tight">{portfolio.name}</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">
+            {portfolio.name}
+          </h1>
           {portfolio.description && (
             <p className="mt-1 text-sm text-muted-foreground">
               {portfolio.description}
@@ -424,8 +394,11 @@ export default function PortfolioDetailPage({ params }: PageProps) {
 
         <div className="flex items-center gap-3">
           <Button
-            onClick={() => setIsAddTxnOpen(true)}
-            className="inline-flex items-center gap-2"
+            onClick={() => {
+              resetTxnForm();
+              setIsAddTxnOpen(true);
+            }}
+            className="inline-flex items-center gap-1.5"
           >
             <Plus className="h-4 w-4" />
             <span>Add Transaction</span>
@@ -433,52 +406,58 @@ export default function PortfolioDetailPage({ params }: PageProps) {
         </div>
       </div>
 
-      {/* Summary Metrics Cards (Phase 3A: No Valuation) */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      {/* Summary Cards: 3 Metric Cards Only */}
+      <div className="grid gap-4 sm:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription className="text-xs uppercase font-medium">
-              Total cost basis
+            <CardDescription className="text-xs uppercase tracking-wide">
+              Total Cost Basis
             </CardDescription>
-            <CardTitle className="text-2xl font-bold">
-              {formatInr(totals?.cost_basis || portfolio.total_cost_basis || "0.00")}
+            <CardTitle className="text-2xl font-mono font-bold">
+              {formatInr(holdingsTotals?.cost_basis ?? portfolio.total_cost_basis)}
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-xs text-muted-foreground">
-            Aggregate cost basis across open positions
+          <CardContent>
+            <p className="text-xs text-muted-foreground">
+              Total capital invested across open positions
+            </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription className="text-xs uppercase font-medium">
-              Open positions
+            <CardDescription className="text-xs uppercase tracking-wide">
+              Open Positions
             </CardDescription>
             <CardTitle className="text-2xl font-bold">
-              {totals?.open_positions ?? portfolio.open_positions ?? 0}
+              {holdingsTotals?.open_positions ?? portfolio.open_positions}
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-xs text-muted-foreground">
-            Funds currently held with positive units
+          <CardContent>
+            <p className="text-xs text-muted-foreground">
+              Schemes currently held in this portfolio
+            </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription className="text-xs uppercase font-medium">
+            <CardDescription className="text-xs uppercase tracking-wide">
               Transactions
             </CardDescription>
             <CardTitle className="text-2xl font-bold">
-              {portfolio.total_transactions ?? transactions.length}
+              {transactions.length || portfolio.total_transactions}
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-xs text-muted-foreground">
-            Total ledger entries recorded
+          <CardContent>
+            <p className="text-xs text-muted-foreground">
+              Ledger records in chronological history
+            </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Target Asset Allocation Editor */}
+      {/* Target Asset Allocation Editor Card (Always Visible) */}
       <Card>
         <CardHeader>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -487,14 +466,14 @@ export default function PortfolioDetailPage({ params }: PageProps) {
                 Target Asset Allocation
               </CardTitle>
               <CardDescription>
-                Define target weightings across asset classes. Exact total must equal 100.00%.
+                Define target percentages across asset classes (must sum to exactly 100%).
               </CardDescription>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <Badge
                 variant="outline"
-                className={`font-mono text-sm px-3 py-1 ${
+                className={`font-mono font-semibold ${
                   targetsEvaluation.isExactHundred
                     ? "border-emerald-500 text-emerald-600 bg-emerald-500/10"
                     : "border-amber-500 text-amber-600 bg-amber-500/10"
@@ -545,122 +524,145 @@ export default function PortfolioDetailPage({ params }: PageProps) {
             </Alert>
           )}
 
-          <div className="space-y-3">
-            {targetRows.map((target, index) => {
-              const classErr = targetsEvaluation.errors.find(
-                (e) => e.index === index && e.field === "asset_class",
-              );
-              const pctErr = targetsEvaluation.errors.find(
-                (e) => e.index === index && e.field === "target_pct",
-              );
-
-              return (
-                <div
-                  key={index}
-                  className="flex flex-col gap-2 sm:flex-row sm:items-center"
-                >
-                  <div className="w-full sm:w-48">
-                    <Select
-                      value={target.asset_class}
-                      onValueChange={(val) => {
-                        const updated = [...targetRows];
-                        const current = updated[index];
-                        if (current) {
-                          updated[index] = { ...current, asset_class: val };
-                          setTargetRows(updated);
-                          setHasTargetsChanged(true);
-                        }
-                      }}
-                    >
-                      <SelectTrigger className={classErr ? "border-destructive" : ""}>
-                        <SelectValue placeholder="Select class" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {VALID_ASSET_CLASSES.map((cls) => (
-                          <SelectItem key={cls} value={cls}>
-                            <span className="capitalize">{cls}</span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {classErr && (
-                      <p className="mt-1 text-xs text-destructive">
-                        {classErr.message}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="flex w-full items-center gap-2 sm:w-44">
-                    <Input
-                      type="number"
-                      step="0.01"
-                      placeholder="e.g. 60.00"
-                      value={target.target_pct}
-                      onChange={(e) => {
-                        const updated = [...targetRows];
-                        const current = updated[index];
-                        if (current) {
-                          updated[index] = {
-                            ...current,
-                            target_pct: e.target.value,
-                          };
-                          setTargetRows(updated);
-                          setHasTargetsChanged(true);
-                        }
-                      }}
-                      className={pctErr ? "border-destructive" : ""}
-                    />
-                    <span className="text-sm font-medium text-muted-foreground">
-                      %
-                    </span>
-                    {pctErr && (
-                      <p className="mt-1 text-xs text-destructive">
-                        {pctErr.message}
-                      </p>
-                    )}
-                  </div>
-
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-9 w-9 p-0 text-muted-foreground hover:text-destructive"
-                    onClick={() => {
-                      const updated = targetRows.filter((_, i) => i !== index);
-                      setTargetRows(updated);
-                      setHasTargetsChanged(true);
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    <span className="sr-only">Remove row</span>
-                  </Button>
-                </div>
-              );
-            })}
-
-            {targetRows.length < 5 && (
+          {targetRows.length === 0 ? (
+            <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground space-y-3">
+              <p>No targets set. Define your target asset allocations below.</p>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  const unusedClass =
-                    VALID_ASSET_CLASSES.find(
-                      (c) => !targetRows.some((r) => r.asset_class === c),
-                    ) || "equity";
                   setTargetRows([
-                    ...targetRows,
-                    { asset_class: unusedClass, target_pct: "" },
+                    { asset_class: "equity", target_pct: "60.00" },
+                    { asset_class: "debt", target_pct: "30.00" },
+                    { asset_class: "gold", target_pct: "10.00" },
                   ]);
                   setHasTargetsChanged(true);
                 }}
                 className="inline-flex items-center gap-1.5"
               >
                 <PlusCircle className="h-4 w-4" />
-                <span>Add Target Row</span>
+                <span>Initialize Default (60/30/10)</span>
               </Button>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {targetRows.map((target, index) => {
+                const classErr = targetsEvaluation.errors.find(
+                  (e) => e.index === index && e.field === "asset_class",
+                );
+                const pctErr = targetsEvaluation.errors.find(
+                  (e) => e.index === index && e.field === "target_pct",
+                );
+
+                return (
+                  <div
+                    key={index}
+                    className="flex flex-col gap-2 sm:flex-row sm:items-center"
+                  >
+                    <div className="w-full sm:w-1/3">
+                      <Select
+                        value={target.asset_class}
+                        onValueChange={(val) => {
+                          const updated = [...targetRows];
+                          const current = updated[index];
+                          if (current) {
+                            updated[index] = { ...current, asset_class: val };
+                            setTargetRows(updated);
+                            setHasTargetsChanged(true);
+                          }
+                        }}
+                      >
+                        <SelectTrigger className={classErr ? "border-destructive" : ""}>
+                          <SelectValue placeholder="Select asset class" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {VALID_ASSET_CLASSES.map((cls) => (
+                            <SelectItem key={cls} value={cls}>
+                              {cls.charAt(0).toUpperCase() + cls.slice(1)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {classErr && (
+                        <p className="mt-1 text-xs text-destructive">
+                          {classErr.message}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex flex-1 items-center gap-2">
+                      <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="e.g. 60.00"
+                        value={target.target_pct}
+                        onChange={(e) => {
+                          const updated = [...targetRows];
+                          const current = updated[index];
+                          if (current) {
+                            updated[index] = {
+                              ...current,
+                              target_pct: e.target.value,
+                            };
+                            setTargetRows(updated);
+                            setHasTargetsChanged(true);
+                          }
+                        }}
+                        className={pctErr ? "border-destructive" : ""}
+                      />
+                      <span className="text-sm font-medium text-muted-foreground">
+                        %
+                      </span>
+                      {pctErr && (
+                        <p className="mt-1 text-xs text-destructive">
+                          {pctErr.message}
+                        </p>
+                      )}
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-9 w-9 p-0 text-muted-foreground hover:text-destructive"
+                      onClick={() => {
+                        const updated = targetRows.filter((_, i) => i !== index);
+                        setTargetRows(updated);
+                        setHasTargetsChanged(true);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      <span className="sr-only">Remove row</span>
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {targetRows.length > 0 && targetRows.length < 5 && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const unusedClass =
+                  VALID_ASSET_CLASSES.find(
+                    (c) => !targetRows.some((r) => r.asset_class === c),
+                  ) || "equity";
+                setTargetRows([
+                  ...targetRows,
+                  { asset_class: unusedClass, target_pct: "" },
+                ]);
+                setHasTargetsChanged(true);
+              }}
+              className="inline-flex items-center gap-1.5"
+            >
+              <PlusCircle className="h-4 w-4" />
+              <span>Add Target Row</span>
+            </Button>
+          )}
         </CardContent>
       </Card>
 
@@ -678,6 +680,22 @@ export default function PortfolioDetailPage({ params }: PageProps) {
             <div className="flex h-32 items-center justify-center">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
+          ) : holdingsError ? (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error Loading Holdings</AlertTitle>
+              <AlertDescription className="space-y-2">
+                <p>{holdingsError.message}</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => refetchHoldings()}
+                  className="inline-flex items-center gap-1.5"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" /> Retry
+                </Button>
+              </AlertDescription>
+            </Alert>
           ) : holdings.length === 0 ? (
             <div className="py-8 text-center text-sm text-muted-foreground">
               No holdings yet. Add buy transactions to build positions.
@@ -722,7 +740,7 @@ export default function PortfolioDetailPage({ params }: PageProps) {
                         {formatUnits(h.units)}
                       </TableCell>
                       <TableCell className="text-right font-mono">
-                        {formatInr(h.avg_cost)}
+                        {formatNav(h.avg_cost)}
                       </TableCell>
                       <TableCell className="text-right font-mono font-medium">
                         {formatInr(h.cost_basis)}
@@ -770,6 +788,22 @@ export default function PortfolioDetailPage({ params }: PageProps) {
             <div className="flex h-32 items-center justify-center">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
+          ) : txnsError ? (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error Loading Transactions</AlertTitle>
+              <AlertDescription className="space-y-2">
+                <p>{txnsError.message}</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => refetchTxns()}
+                  className="inline-flex items-center gap-1.5"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" /> Retry
+                </Button>
+              </AlertDescription>
+            </Alert>
           ) : transactions.length === 0 ? (
             <div className="py-8 text-center text-sm text-muted-foreground">
               No transactions recorded yet. Click &quot;Add Transaction&quot; to begin.
@@ -798,9 +832,9 @@ export default function PortfolioDetailPage({ params }: PageProps) {
                       <Badge
                         variant="outline"
                         className={
-                          txn.txn_type === "BUY"
-                            ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
-                            : "bg-rose-500/10 text-rose-600 border-rose-500/20"
+                          txn.txn_type === "buy" || txn.txn_type === "dividend_reinvest"
+                            ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 uppercase text-xs"
+                            : "bg-rose-500/10 text-rose-600 border-rose-500/20 uppercase text-xs"
                         }
                       >
                         {txn.txn_type}
@@ -926,7 +960,7 @@ export default function PortfolioDetailPage({ params }: PageProps) {
                     </div>
                   )}
 
-                  {searchResults && searchResults.items.length > 0 && (
+                  {searchResults?.items && searchResults.items.length > 0 && (
                     <div className="max-h-48 overflow-y-auto rounded-md border bg-popover text-popover-foreground shadow-sm divide-y">
                       {searchResults.items.map((fund) => (
                         <button
@@ -971,14 +1005,14 @@ export default function PortfolioDetailPage({ params }: PageProps) {
                 <Label>Transaction Type</Label>
                 <Select
                   value={txnType}
-                  onValueChange={(val: "BUY" | "SELL") => setTxnType(val)}
+                  onValueChange={(val: "buy" | "sell") => setTxnType(val)}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="BUY">BUY</SelectItem>
-                    <SelectItem value="SELL">SELL</SelectItem>
+                    <SelectItem value="buy">BUY</SelectItem>
+                    <SelectItem value="sell">SELL</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1008,8 +1042,9 @@ export default function PortfolioDetailPage({ params }: PageProps) {
 
               <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-xs">Units</Label>
+                  <Label htmlFor="txn-units" className="text-xs">Units</Label>
                   <Input
+                    id="txn-units"
                     type="number"
                     step="0.0001"
                     placeholder="0.0000"
@@ -1019,8 +1054,9 @@ export default function PortfolioDetailPage({ params }: PageProps) {
                 </div>
 
                 <div className="space-y-1">
-                  <Label className="text-xs">NAV (₹)</Label>
+                  <Label htmlFor="txn-nav" className="text-xs">NAV (₹)</Label>
                   <Input
+                    id="txn-nav"
                     type="number"
                     step="0.00000001"
                     placeholder="0.0000"
@@ -1030,8 +1066,9 @@ export default function PortfolioDetailPage({ params }: PageProps) {
                 </div>
 
                 <div className="space-y-1">
-                  <Label className="text-xs">Amount (₹)</Label>
+                  <Label htmlFor="txn-amount" className="text-xs">Amount (₹)</Label>
                   <Input
+                    id="txn-amount"
                     type="number"
                     step="0.01"
                     placeholder="0.00"
@@ -1116,7 +1153,7 @@ export default function PortfolioDetailPage({ params }: PageProps) {
                 {editingTxn?.fund_name || `Scheme ${editingTxn?.scheme_code}`}
               </p>
               <p className="text-muted-foreground">
-                Type: <span className="font-semibold">{editingTxn?.txn_type}</span> (Immutable)
+                Type: <span className="font-semibold uppercase">{editingTxn?.txn_type}</span> (Immutable)
               </p>
             </div>
 

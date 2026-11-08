@@ -198,7 +198,7 @@ async def test_worked_example_holdings_and_delete_guard(
     fund = await _seed_test_fund(
         test_session,
         scheme_code=122639,
-        latest_nav=Decimal("75.00000000"),
+        latest_nav=Decimal("95.50000000"),
     )
 
     r_port = await client.post(
@@ -271,6 +271,17 @@ async def test_worked_example_holdings_and_delete_guard(
     assert h["last_txn_date"] == "2025-03-10"
     assert h["txn_count"] == 3
     assert h["is_closed"] is False
+
+    # Check embedded fund master metadata
+    f = h["fund"]
+    assert f["name"] == "Parag Parikh Flexi Cap Fund"
+    assert f["amc"] == "PPFAS"
+    assert f["asset_class"] == "equity"
+    assert f["sub_category"] == "flexi-cap"
+    assert f["plan_type"] == "direct"
+    assert f["option_type"] == "growth"
+    assert f["latest_nav"] == "95.50000000"
+    assert f["latest_nav_date"] == "2026-11-06"
 
     assert h_data["totals"]["cost_basis"] == "6400.00"
     assert h_data["totals"]["open_positions"] == 1
@@ -543,7 +554,7 @@ async def test_count_open_positions_sql_matches_pure_function(
     assert sql_count == 1
 
     r_txns = await client.get(f"/api/v1/portfolios/{p_id}/transactions", headers=headers)
-    txns = r_txns.json()["data"]
+    txns = r_txns.json()["data"]["items"]
 
     from app.models.transaction import Transaction
 
@@ -562,3 +573,81 @@ async def test_count_open_positions_sql_matches_pure_function(
     pure_holdings = compute_holdings(txns_models)
     pure_open_count = sum(1 for h in pure_holdings.values() if not h.is_closed)
     assert sql_count == pure_open_count == 1
+
+
+@pytest.mark.asyncio
+async def test_holdings_query_count_no_n_plus_one(
+    client: AsyncClient, test_session: AsyncSession
+) -> None:
+    """GET /portfolios/{id}/holdings must execute in a constant number of queries regardless of
+
+    how many distinct funds are present in the portfolio (no N+1 SQL queries).
+    """
+    from sqlalchemy import event
+
+    from app.core.db import get_engine
+
+    headers = await _get_auth_headers(client, email="nplus1_user@example.com")
+
+    # 1. Create a portfolio
+    r_create = await client.post(
+        "/api/v1/portfolios",
+        json={"name": "N+1 Test Portfolio"},
+        headers=headers,
+    )
+    assert r_create.status_code == 201
+    p_id = r_create.json()["data"]["id"]
+
+    # 2. Seed 4 distinct funds and add transactions for each
+    funds = []
+    for code in [70001, 70002, 70003, 70004]:
+        f = await _seed_test_fund(
+            test_session,
+            scheme_code=code,
+            name=f"Test Growth Fund {code}",
+            latest_nav=Decimal("100.00000000"),
+        )
+        funds.append(f)
+        r_txn = await client.post(
+            f"/api/v1/portfolios/{p_id}/transactions",
+            json={
+                "fund_id": str(f.id),
+                "txn_type": "buy",
+                "txn_date": "2026-11-01",
+                "units": "50.0000",
+                "nav": "100.00000000",
+                "amount": "5000.00",
+            },
+            headers=headers,
+        )
+        assert r_txn.status_code == 201
+
+    # 3. Intercept and count executed SQL statements during GET /holdings
+    statements: list[str] = []
+
+    def before_cursor_execute(
+        conn: Any, cursor: Any, statement: str, parameters: Any, context: Any, executemany: bool
+    ) -> None:
+        statements.append(statement)
+
+    sync_engine = get_engine().sync_engine
+    event.listen(sync_engine, "before_cursor_execute", before_cursor_execute)
+    try:
+        r_holdings = await client.get(f"/api/v1/portfolios/{p_id}/holdings", headers=headers)
+        assert r_holdings.status_code == 200
+        data = r_holdings.json()["data"]
+        assert len(data["items"]) == 4
+
+        # For 4 funds, N+1 would execute 1 (txns) + 4 (funds) = 5+ queries.
+        # With joinedload(Transaction.fund), total SELECT queries is exactly 2:
+        # 1: SELECT portfolio to check ownership
+        # 2: SELECT transactions JOIN funds (single query for all transactions and funds)
+        # Even counting auth user lookup if applicable, statements must remain strictly <= 3.
+        select_statements = [s for s in statements if s.strip().upper().startswith("SELECT")]
+        err_msg = (
+            f"Expected <= 3 SELECT queries for 4 funds, but got "
+            f"{len(select_statements)}: {select_statements}"
+        )
+        assert len(select_statements) <= 3, err_msg
+    finally:
+        event.remove(sync_engine, "before_cursor_execute", before_cursor_execute)

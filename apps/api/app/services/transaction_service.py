@@ -87,9 +87,9 @@ class TransactionService:
             raise FundNotFoundError("Fund not found")
 
         # 4. Validate transaction type
-        normalized_type = txn_type.strip().upper()
-        if normalized_type not in ("BUY", "SELL"):
-            raise ValidationError("Transaction type must be 'BUY' or 'SELL'")
+        normalized_type = txn_type.strip().lower()
+        if normalized_type not in ("buy", "sell", "dividend_reinvest"):
+            raise ValidationError("Transaction type must be 'buy', 'sell', or 'dividend_reinvest'")
 
         # 5. Validate date bounds
         if txn_date < LEDGER_DATE_FLOOR:
@@ -372,7 +372,7 @@ class TransactionService:
     async def count_open_positions_sql(session: AsyncSession, portfolio_id: UUID) -> int:
         """Calculate open positions using a pure SQL aggregate for cross-verification."""
         signed_units = case(
-            (Transaction.txn_type == "BUY", Transaction.units),
+            (Transaction.txn_type.in_(("BUY", "buy", "dividend_reinvest")), Transaction.units),
             else_=-Transaction.units,
         )
         subq = (

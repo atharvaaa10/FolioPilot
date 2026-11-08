@@ -34,11 +34,12 @@ def ledger_sort_key(txn: Any) -> tuple[date, int, datetime, str]:
     """Deterministic ordering key for transactions:
 
     1. txn_date ASC
-    2. txn_type rank: BUY (0) before SELL (1) on the same date
+    2. txn_type rank: buy/dividend_reinvest (0) before sell (1) on the same date
     3. created_at ASC (or min datetime if unpersisted)
     4. id ASC (or empty string if unpersisted)
     """
-    type_rank = 0 if getattr(txn, "txn_type", "").upper() == "BUY" else 1
+    txn_type = str(getattr(txn, "txn_type", "")).lower()
+    type_rank = 0 if txn_type in ("buy", "dividend_reinvest") else 1
     created_at = getattr(txn, "created_at", None) or datetime.min.replace(tzinfo=UTC)
     txn_id = str(getattr(txn, "id", "") or "")
     return (txn.txn_date, type_rank, created_at, txn_id)
@@ -53,7 +54,7 @@ def validate_ledger(
 
     Applies deterministic tie-breaking sort order before evaluating.
     Raises:
-    - InsufficientUnitsError (409) if a new SELL exceeds available balance.
+    - InsufficientUnitsError (409) if a new sell exceeds available balance.
     - LedgerInconsistentError (409) if an edit or deletion breaks a downstream sell.
     """
     sorted_txns = sorted(transactions, key=ledger_sort_key)
@@ -61,12 +62,12 @@ def validate_ledger(
 
     for txn in sorted_txns:
         fund_id = txn.fund_id
-        txn_type = getattr(txn, "txn_type", "").upper()
+        txn_type = str(getattr(txn, "txn_type", "")).lower()
         txn_id_str = str(getattr(txn, "id", "") or "")
 
-        if txn_type == "BUY":
+        if txn_type in ("buy", "dividend_reinvest"):
             units_by_fund[fund_id] += txn.units
-        elif txn_type == "SELL":
+        elif txn_type == "sell":
             available = units_by_fund[fund_id]
             if available < txn.units:
                 # If adding a new sell and this is that sell, raise INSUFFICIENT_UNITS
@@ -82,7 +83,11 @@ def validate_ledger(
                 raise LedgerInconsistentError(
                     f"Ledger inconsistent: fund {fund_id} balance becomes negative "
                     f"({available - txn.units}) on {txn.txn_date}",
-                    details={"fund_id": str(fund_id), "date": str(txn.txn_date)},
+                    details={
+                        "fund": str(fund_id),
+                        "fund_id": str(fund_id),
+                        "date": str(txn.txn_date),
+                    },
                 )
             units_by_fund[fund_id] -= txn.units
 
@@ -112,12 +117,12 @@ def compute_holdings(transactions: list[Any]) -> dict[UUID, DerivedHolding]:
         txn_count = len(fund_txns)
 
         for txn in fund_txns:
-            txn_type = getattr(txn, "txn_type", "").upper()
-            if txn_type == "BUY":
+            txn_type = str(getattr(txn, "txn_type", "")).lower()
+            if txn_type in ("buy", "dividend_reinvest"):
                 running_units += txn.units
                 running_cost += txn.amount
                 total_bought += txn.amount
-            elif txn_type == "SELL":
+            elif txn_type == "sell":
                 total_sold += txn.amount
                 if running_units > Decimal("0"):
                     avg_cost_val = running_cost / running_units

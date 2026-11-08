@@ -1,0 +1,24 @@
+{
+  "id": "11111111-1111-1111-1111-111111111111",
+  "name": "Retirement",
+  "description": "Long-term retirement portfolio",
+  "created_at": "2026-01-01T00:00:00Z",
+  "updated_at": "2026-01-01T00:00:00Z",
+  "targets": [
+    {
+      "asset_class": "equity",
+      "target_pct": "60.00"
+    },
+    {
+      "asset_class": "debt",
+      "target_pct": "30.00"
+    },
+    {
+      "asset_class": "gold",
+      "target_pct": "10.00"
+    }
+  ],
+  "total_cost_basis": "6400.00",
+  "open_positions": 1,
+  "total_transactions": 3
+}

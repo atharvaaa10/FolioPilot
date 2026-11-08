@@ -41,7 +41,10 @@ class TransactionRepository:
 
         (txn_date ASC, BUY before SELL, created_at ASC, id ASC).
         """
-        type_rank = case((Transaction.txn_type == "BUY", 0), else_=1)
+        type_rank = case(
+            (Transaction.txn_type.in_(("BUY", "buy", "dividend_reinvest")), 0),
+            else_=1,
+        )
         stmt = (
             select(Transaction)
             .where(Transaction.portfolio_id == portfolio_id)
@@ -82,7 +85,7 @@ class TransactionRepository:
         txn = Transaction(
             portfolio_id=portfolio_id,
             fund_id=fund_id,
-            txn_type=txn_type.upper(),
+            txn_type=txn_type.lower(),
             txn_date=txn_date,
             units=units,
             nav=nav,

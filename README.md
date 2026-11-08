@@ -153,6 +153,24 @@ npm --prefix apps/web run build
 | `make rebuild-web` | Rebuild web container and renew anonymous node_modules volume |
 | `make rebuild-python` | Rebuild api, worker & beat containers and renew .venv volume |
 | `make smoke` | Run health and route smoke checks across web and api services (PowerShell-only script `scripts/smoke.ps1` for local dev; not run in Linux CI) |
+| `make contract` | Generate backend contract JSON fixtures for frontend tests |
+| `make e2e` | Run Playwright end-to-end tests against running stack (PowerShell/Windows) |
+
+### Contract Testing & Real-Browser E2E Testing
+
+- **Contract Fixtures (`make contract`)**:
+  Generates verified API response fixtures from real test service calls into `apps/web/src/test/fixtures/contract/*.json`. Frontend tests and Zod schemas validate against these committed fixtures, preventing API-client contract drift.
+
+- **Playwright E2E (`make e2e`)**:
+  Executes browser integration flows in headless Chromium against `http://localhost:3000`.
+  > **DISK RULE (Critical)**: Browser binaries must NEVER be installed to the `C:` drive. Set `PLAYWRIGHT_BROWSERS_PATH` to `D:\caches\playwright`:
+  > ```powershell
+  > $env:PLAYWRIGHT_BROWSERS_PATH = "D:\caches\playwright"
+  > npx playwright install chromium
+  > npm --prefix apps/web run e2e
+  > ```
+  > Evidence artifacts (screenshots and test report) are output to `E:\USER\Projects\_evidence\e2e`.
+
 
 ### Dependencies Changed?
 If dependencies changed in `package.json` or `uv.lock`, run:

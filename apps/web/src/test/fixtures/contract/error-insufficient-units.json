@@ -1,0 +1,8 @@
+{
+  "code": "INSUFFICIENT_UNITS",
+  "message": "Insufficient units for sell transaction",
+  "details": {
+    "available_units": "120.0000",
+    "date": "2025-03-11"
+  }
+}

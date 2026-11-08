@@ -1,0 +1,259 @@
+{
+  "valid_asset_classes": [
+    "debt",
+    "equity",
+    "gold",
+    "hybrid",
+    "other"
+  ],
+  "classifications": [
+    {
+      "asset_class": "debt",
+      "sub_category": "10-year-gilt"
+    },
+    {
+      "asset_class": "debt",
+      "sub_category": "banking-and-psu"
+    },
+    {
+      "asset_class": "debt",
+      "sub_category": "corporate-bond"
+    },
+    {
+      "asset_class": "debt",
+      "sub_category": "credit-risk"
+    },
+    {
+      "asset_class": "debt",
+      "sub_category": "dynamic-bond"
+    },
+    {
+      "asset_class": "debt",
+      "sub_category": "dynamic-term"
+    },
+    {
+      "asset_class": "debt",
+      "sub_category": "fixed-term-plan"
+    },
+    {
+      "asset_class": "debt",
+      "sub_category": "floater"
+    },
+    {
+      "asset_class": "debt",
+      "sub_category": "gilt"
+    },
+    {
+      "asset_class": "debt",
+      "sub_category": "income"
+    },
+    {
+      "asset_class": "debt",
+      "sub_category": "index-debt"
+    },
+    {
+      "asset_class": "debt",
+      "sub_category": "interval-income"
+    },
+    {
+      "asset_class": "debt",
+      "sub_category": "liquid"
+    },
+    {
+      "asset_class": "debt",
+      "sub_category": "long-duration"
+    },
+    {
+      "asset_class": "debt",
+      "sub_category": "long-term"
+    },
+    {
+      "asset_class": "debt",
+      "sub_category": "low-duration"
+    },
+    {
+      "asset_class": "debt",
+      "sub_category": "medium-duration"
+    },
+    {
+      "asset_class": "debt",
+      "sub_category": "medium-term"
+    },
+    {
+      "asset_class": "debt",
+      "sub_category": "medium-to-long-duration"
+    },
+    {
+      "asset_class": "debt",
+      "sub_category": "medium-to-long-term"
+    },
+    {
+      "asset_class": "debt",
+      "sub_category": "money-market"
+    },
+    {
+      "asset_class": "debt",
+      "sub_category": "other-debt"
+    },
+    {
+      "asset_class": "debt",
+      "sub_category": "overnight"
+    },
+    {
+      "asset_class": "debt",
+      "sub_category": "sectoral"
+    },
+    {
+      "asset_class": "debt",
+      "sub_category": "short-duration"
+    },
+    {
+      "asset_class": "debt",
+      "sub_category": "short-term"
+    },
+    {
+      "asset_class": "debt",
+      "sub_category": "ultra-short-duration"
+    },
+    {
+      "asset_class": "debt",
+      "sub_category": "ultra-short-term"
+    },
+    {
+      "asset_class": "debt",
+      "sub_category": "ultra-short-to-short-term"
+    },
+    {
+      "asset_class": "equity",
+      "sub_category": "contra"
+    },
+    {
+      "asset_class": "equity",
+      "sub_category": "dividend-yield"
+    },
+    {
+      "asset_class": "equity",
+      "sub_category": "elss"
+    },
+    {
+      "asset_class": "equity",
+      "sub_category": "flexi-cap"
+    },
+    {
+      "asset_class": "equity",
+      "sub_category": "focused"
+    },
+    {
+      "asset_class": "equity",
+      "sub_category": "growth"
+    },
+    {
+      "asset_class": "equity",
+      "sub_category": "index"
+    },
+    {
+      "asset_class": "equity",
+      "sub_category": "international"
+    },
+    {
+      "asset_class": "equity",
+      "sub_category": "large-and-mid-cap"
+    },
+    {
+      "asset_class": "equity",
+      "sub_category": "large-cap"
+    },
+    {
+      "asset_class": "equity",
+      "sub_category": "mid-cap"
+    },
+    {
+      "asset_class": "equity",
+      "sub_category": "multi-cap"
+    },
+    {
+      "asset_class": "equity",
+      "sub_category": "sectoral"
+    },
+    {
+      "asset_class": "equity",
+      "sub_category": "sectoral-thematic"
+    },
+    {
+      "asset_class": "equity",
+      "sub_category": "small-cap"
+    },
+    {
+      "asset_class": "equity",
+      "sub_category": "thematic"
+    },
+    {
+      "asset_class": "equity",
+      "sub_category": "value"
+    },
+    {
+      "asset_class": "gold",
+      "sub_category": "gold-etf"
+    },
+    {
+      "asset_class": "hybrid",
+      "sub_category": "aggressive-hybrid"
+    },
+    {
+      "asset_class": "hybrid",
+      "sub_category": "arbitrage"
+    },
+    {
+      "asset_class": "hybrid",
+      "sub_category": "balanced-advantage"
+    },
+    {
+      "asset_class": "hybrid",
+      "sub_category": "balanced-hybrid"
+    },
+    {
+      "asset_class": "hybrid",
+      "sub_category": "conservative-hybrid"
+    },
+    {
+      "asset_class": "hybrid",
+      "sub_category": "equity-savings"
+    },
+    {
+      "asset_class": "hybrid",
+      "sub_category": "index-hybrid"
+    },
+    {
+      "asset_class": "hybrid",
+      "sub_category": "multi-asset-allocation"
+    },
+    {
+      "asset_class": "other",
+      "sub_category": null
+    },
+    {
+      "asset_class": "other",
+      "sub_category": "fof"
+    },
+    {
+      "asset_class": "other",
+      "sub_category": "life-cycle"
+    },
+    {
+      "asset_class": "other",
+      "sub_category": "silver"
+    },
+    {
+      "asset_class": "other",
+      "sub_category": "silver-etf"
+    },
+    {
+      "asset_class": "other",
+      "sub_category": "solution-oriented"
+    },
+    {
+      "asset_class": "other",
+      "sub_category": "unknown"
+    }
+  ]
+}

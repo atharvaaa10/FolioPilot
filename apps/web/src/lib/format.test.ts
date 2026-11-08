@@ -31,7 +31,7 @@ describe("format utilities", () => {
 
   describe("formatUnits", () => {
     it("formats mutual fund units with 4 decimals", () => {
-      expect(formatUnits(100)).toBe("100.00");
+      expect(formatUnits(100)).toBe("100.0000");
       expect(formatUnits("120.5432")).toBe("120.5432");
       expect(formatUnits(null)).toBe("0.0000");
     });
@@ -79,3 +79,4 @@ describe("format utilities", () => {
     });
   });
 });
+

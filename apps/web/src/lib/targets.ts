@@ -30,18 +30,19 @@ export interface TargetsSummary {
  * Evaluates target allocations using exact decimal arithmetic.
  * Ensures 33.33 + 33.33 + 33.34 equals exactly 100.00.
  */
-export function evaluateTargets(targets: TargetItem[]): TargetsSummary {
+export function evaluateTargets(targets: TargetItem[] = []): TargetsSummary {
+  const safeTargets = Array.isArray(targets) ? targets : [];
   const errors: TargetValidationError[] = [];
   let generalError: string | null = null;
 
-  if (targets.length > MAX_TARGET_ROWS) {
+  if (safeTargets.length > MAX_TARGET_ROWS) {
     generalError = `Cannot configure more than ${MAX_TARGET_ROWS} target allocations`;
   }
 
   const seenClasses = new Set<string>();
   let runningTotal = new Decimal("0.00");
 
-  targets.forEach((target, index) => {
+  safeTargets.forEach((target, index) => {
     const rawClass = target.asset_class?.trim().toLowerCase();
     const rawPct = target.target_pct?.trim();
 
@@ -119,7 +120,7 @@ export function evaluateTargets(targets: TargetItem[]): TargetsSummary {
   let isValid = false;
   let canSave = false;
 
-  if (targets.length === 0) {
+  if (safeTargets.length === 0) {
     isValid = true;
     canSave = true;
   } else {

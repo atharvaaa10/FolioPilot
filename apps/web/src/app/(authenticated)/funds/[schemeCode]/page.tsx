@@ -6,7 +6,8 @@ import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, CheckCircle2, History, Loader2 } from "lucide-react";
 
-import { apiClient, ApiError } from "@/lib/api";
+import { fundsApi } from "@/lib/funds-api";
+import { ApiError } from "@/lib/api";
 import {
   formatDateString,
   formatNav,
@@ -19,7 +20,6 @@ import { Button } from "@/components/ui/button";
 import type {
   FundDetailResponse,
   FundNavHistoryResponse,
-  TrackFundResponse,
 } from "@/types/funds";
 
 interface PageProps {
@@ -43,9 +43,7 @@ export default function FundDetailPage({ params }: PageProps) {
     error: fundError,
   } = useQuery<FundDetailResponse>({
     queryKey: ["fund-detail", schemeCode],
-    queryFn: async () => {
-      return await apiClient<FundDetailResponse>(`/api/v1/funds/${schemeCode}`);
-    },
+    queryFn: async () => fundsApi.getDetail(schemeCode),
     enabled: !Number.isNaN(schemeCode),
   });
 
@@ -56,9 +54,7 @@ export default function FundDetailPage({ params }: PageProps) {
     refetch: refetchNav,
   } = useQuery<FundNavHistoryResponse>({
     queryKey: ["fund-nav", schemeCode],
-    queryFn: async () => {
-      return await apiClient<FundNavHistoryResponse>(`/api/v1/funds/${schemeCode}/nav`);
-    },
+    queryFn: async () => fundsApi.getNavHistory(schemeCode),
     enabled: !Number.isNaN(schemeCode),
   });
 
@@ -79,9 +75,7 @@ export default function FundDetailPage({ params }: PageProps) {
       setPollAttempts(1);
 
       // Trigger tracking
-      await apiClient<TrackFundResponse>(`/api/v1/funds/${schemeCode}/track`, {
-        method: "POST",
-      });
+      await fundsApi.trackFund(schemeCode);
 
       // Poll every 2 seconds for up to 30 seconds (15 attempts)
       let currentAttempt = 1;

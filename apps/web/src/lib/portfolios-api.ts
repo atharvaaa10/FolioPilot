@@ -1,75 +1,37 @@
 import { apiClient } from "./api";
+import {
+  FundSummary,
+  Holding,
+  HoldingsResponse,
+  HoldingsResponseSchema,
+  HoldingsTotals,
+  PortfolioDetail,
+  PortfolioDetailSchema,
+  PortfolioSummary,
+  PortfolioSummarySchema,
+  TargetAllocation,
+  TargetAllocationSchema,
+  TransactionItem,
+  TransactionItemSchema,
+  TransactionListResponse,
+  TransactionListResponseSchema,
+  TransactionType,
+  validateContract,
+} from "./schemas/contract";
+import { z } from "zod";
 
-export interface TargetAllocation {
-  asset_class: string;
-  target_pct: string;
-}
-
-export interface PortfolioSummary {
-  id: string;
-  name: string;
-  description: string | null;
-  created_at: string;
-  updated_at: string;
-  targets: TargetAllocation[];
-}
-
-export interface PortfolioDetail extends PortfolioSummary {
-  total_cost_basis: string;
-  open_positions: number;
-  total_transactions: number;
-}
-
-export interface FundSummary {
-  name: string;
-  amc: string;
-  asset_class: string;
-  sub_category: string | null;
-  plan_type: string;
-  option_type: string;
-  latest_nav: string | null;
-  latest_nav_date: string | null;
-}
-
-export interface Holding {
-  scheme_code: number;
-  fund: FundSummary;
-  units: string;
-  avg_cost: string;
-  cost_basis: string;
-  total_bought: string;
-  total_sold: string;
-  first_txn_date: string;
-  last_txn_date: string;
-  txn_count: number;
-  is_closed: boolean;
-}
-
-export interface HoldingsTotals {
-  cost_basis: string;
-  open_positions: number;
-}
-
-export interface HoldingsResponse {
-  items: Holding[];
-  totals: HoldingsTotals;
-}
-
-export interface TransactionItem {
-  id: string;
-  portfolio_id: string;
-  fund_id: string;
-  scheme_code: number | null;
-  fund_name: string | null;
-  txn_type: "BUY" | "SELL";
-  txn_date: string;
-  units: string;
-  nav: string;
-  amount: string;
-  notes: string | null;
-  created_at: string;
-  updated_at?: string | null;
-}
+export type {
+  FundSummary,
+  Holding,
+  HoldingsResponse,
+  HoldingsTotals,
+  PortfolioDetail,
+  PortfolioSummary,
+  TargetAllocation,
+  TransactionItem,
+  TransactionListResponse,
+  TransactionType,
+};
 
 export interface CreatePortfolioPayload {
   name: string;
@@ -78,7 +40,7 @@ export interface CreatePortfolioPayload {
 
 export interface CreateTransactionPayload {
   scheme_code: number;
-  txn_type: "BUY" | "SELL";
+  txn_type: TransactionType;
   txn_date: string;
   units?: string;
   nav?: string;
@@ -96,18 +58,21 @@ export interface UpdateTransactionPayload {
 
 export const portfoliosApi = {
   list: async (): Promise<PortfolioSummary[]> => {
-    return apiClient<PortfolioSummary[]>("/api/v1/portfolios");
+    const raw = await apiClient<PortfolioSummary[]>("/api/v1/portfolios");
+    return validateContract(z.array(PortfolioSummarySchema), raw, "portfoliosApi.list");
   },
 
   create: async (data: CreatePortfolioPayload): Promise<PortfolioSummary> => {
-    return apiClient<PortfolioSummary>("/api/v1/portfolios", {
+    const raw = await apiClient<PortfolioSummary>("/api/v1/portfolios", {
       method: "POST",
       body: JSON.stringify(data),
     });
+    return validateContract(PortfolioSummarySchema, raw, "portfoliosApi.create");
   },
 
   get: async (id: string): Promise<PortfolioDetail> => {
-    return apiClient<PortfolioDetail>(`/api/v1/portfolios/${id}`);
+    const raw = await apiClient<PortfolioDetail>(`/api/v1/portfolios/${id}`);
+    return validateContract(PortfolioDetailSchema, raw, `portfoliosApi.get(${id})`);
   },
 
   delete: async (id: string): Promise<void> => {
@@ -120,26 +85,38 @@ export const portfoliosApi = {
     id: string,
     targets: TargetAllocation[],
   ): Promise<TargetAllocation[]> => {
-    return apiClient<TargetAllocation[]>(`/api/v1/portfolios/${id}/targets`, {
+    const raw = await apiClient<TargetAllocation[]>(`/api/v1/portfolios/${id}/targets`, {
       method: "PUT",
       body: JSON.stringify(targets),
     });
+    return validateContract(z.array(TargetAllocationSchema), raw, "portfoliosApi.updateTargets");
   },
 
   getHoldings: async (id: string): Promise<HoldingsResponse> => {
-    return apiClient<HoldingsResponse>(`/api/v1/portfolios/${id}/holdings`);
+    const raw = await apiClient<HoldingsResponse>(`/api/v1/portfolios/${id}/holdings`);
+    return validateContract(HoldingsResponseSchema, raw, `portfoliosApi.getHoldings(${id})`);
   },
 
-  listTransactions: async (id: string): Promise<TransactionItem[]> => {
-    return apiClient<TransactionItem[]>(`/api/v1/portfolios/${id}/transactions`);
+  listTransactions: async (id: string): Promise<TransactionListResponse> => {
+    const raw = await apiClient<TransactionListResponse>(`/api/v1/portfolios/${id}/transactions`);
+    return validateContract(
+      TransactionListResponseSchema,
+      raw,
+      `portfoliosApi.listTransactions(${id})`,
+    );
   },
 
   getTransaction: async (
     portfolioId: string,
     transactionId: string,
   ): Promise<TransactionItem> => {
-    return apiClient<TransactionItem>(
+    const raw = await apiClient<TransactionItem>(
       `/api/v1/portfolios/${portfolioId}/transactions/${transactionId}`,
+    );
+    return validateContract(
+      TransactionItemSchema,
+      raw,
+      `portfoliosApi.getTransaction(${transactionId})`,
     );
   },
 
@@ -147,13 +124,14 @@ export const portfoliosApi = {
     portfolioId: string,
     data: CreateTransactionPayload,
   ): Promise<TransactionItem> => {
-    return apiClient<TransactionItem>(
+    const raw = await apiClient<TransactionItem>(
       `/api/v1/portfolios/${portfolioId}/transactions`,
       {
         method: "POST",
         body: JSON.stringify(data),
       },
     );
+    return validateContract(TransactionItemSchema, raw, "portfoliosApi.createTransaction");
   },
 
   updateTransaction: async (
@@ -161,13 +139,14 @@ export const portfoliosApi = {
     transactionId: string,
     data: UpdateTransactionPayload,
   ): Promise<TransactionItem> => {
-    return apiClient<TransactionItem>(
+    const raw = await apiClient<TransactionItem>(
       `/api/v1/portfolios/${portfolioId}/transactions/${transactionId}`,
       {
         method: "PATCH",
         body: JSON.stringify(data),
       },
     );
+    return validateContract(TransactionItemSchema, raw, "portfoliosApi.updateTransaction");
   },
 
   deleteTransaction: async (

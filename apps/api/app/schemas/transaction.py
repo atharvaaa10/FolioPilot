@@ -20,11 +20,11 @@ OptionalDecimalStr = Annotated[
 
 
 class TransactionCreate(BaseModel):
-    """Payload to record a BUY or SELL transaction in portfolio ledger."""
+    """Payload to record a transaction in portfolio ledger."""
 
     fund_id: UUID | None = None
     scheme_code: int | None = None
-    txn_type: Literal["BUY", "SELL", "buy", "sell"]
+    txn_type: Literal["buy", "sell", "dividend_reinvest", "BUY", "SELL"]
     txn_date: date
     units: Decimal | None = None
     nav: Decimal | None = None
@@ -55,7 +55,7 @@ class TransactionResponse(BaseModel):
     fund_id: UUID
     scheme_code: int | None = None
     fund_name: str | None = None
-    txn_type: str
+    txn_type: Literal["buy", "sell", "dividend_reinvest"]
     txn_date: date
     units: DecimalStr
     nav: DecimalStr
@@ -63,6 +63,13 @@ class TransactionResponse(BaseModel):
     notes: str | None = None
     created_at: datetime
     updated_at: datetime | None = None
+
+
+class TransactionListResponse(BaseModel):
+    """Transaction list endpoint envelope data."""
+
+    items: list[TransactionResponse]
+    has_more: bool = False
 
 
 class FundSummary(BaseModel):

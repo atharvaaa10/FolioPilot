@@ -44,7 +44,7 @@ export function formatUnits(units: number | string | null | undefined): string {
     return "0.0000";
   }
   return num.toLocaleString("en-IN", {
-    minimumFractionDigits: 2,
+    minimumFractionDigits: 4,
     maximumFractionDigits: 4,
   });
 }
@@ -176,3 +176,4 @@ export function getOptionBadge(option: string): BadgeStyle {
       };
   }
 }
+

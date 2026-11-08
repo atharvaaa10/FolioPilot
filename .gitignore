@@ -52,6 +52,11 @@ pnpm-debug.log*
 coverage/
 *.lcov
 .nyc_output
+apps/web/playwright-report/
+apps/web/test-results/
+apps/web/e2e/.auth/
+playwright-report/
+test-results/
 
 # IDE & OS
 .vscode/

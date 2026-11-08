@@ -1,0 +1,9 @@
+{
+  "code": "LEDGER_INCONSISTENT",
+  "message": "Operation would cause negative unit balance in transaction history",
+  "details": {
+    "fund": "33333333-3333-3333-3333-333333333333",
+    "fund_id": "33333333-3333-3333-3333-333333333333",
+    "date": "2025-04-10"
+  }
+}

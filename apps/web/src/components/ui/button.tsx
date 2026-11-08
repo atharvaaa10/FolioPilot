@@ -5,6 +5,7 @@ export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link";
   size?: "default" | "sm" | "lg" | "icon";
+  asChild?: boolean;
 }
 
 const variantStyles: Record<NonNullable<ButtonProps["variant"]>, string> = {
@@ -27,7 +28,7 @@ const sizeStyles: Record<NonNullable<ButtonProps["size"]>, string> = {
 };
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = "default", size = "default", ...props }, ref) => {
+  ({ className, variant = "default", size = "default", asChild: _asChild, ...props }, ref) => {
     return (
       <button
         ref={ref}

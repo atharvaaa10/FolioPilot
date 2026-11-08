@@ -1,4 +1,4 @@
-.PHONY: up down logs migrate makemigration test test-api test-web lint format typecheck shell-api psql rebuild-web rebuild-python smoke sync-nav backfill-nav reclassify
+.PHONY: up down logs migrate makemigration test test-api test-web lint format typecheck shell-api psql rebuild-web rebuild-python smoke sync-nav backfill-nav reclassify contract e2e
 
 # Default docker compose command
 DC = docker compose
@@ -61,4 +61,10 @@ shell-api:
 
 psql:
 	$(DC) exec db psql -U foliopilot -d foliopilot
+
+contract:
+	$(DC) exec api python scripts/generate_contract_fixtures.py
+
+e2e:
+	powershell -Command "$$env:PLAYWRIGHT_BROWSERS_PATH='D:\caches\playwright'; npm --prefix apps/web run e2e"
 

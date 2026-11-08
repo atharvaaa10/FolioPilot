@@ -50,7 +50,10 @@ class Transaction(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     fund: Mapped["Fund"] = relationship("Fund", lazy="joined")
 
     __table_args__ = (
-        CheckConstraint("txn_type IN ('BUY', 'SELL')", name="chk_transaction_type"),
+        CheckConstraint(
+            "txn_type IN ('buy', 'sell', 'dividend_reinvest')",
+            name="chk_transaction_type",
+        ),
         CheckConstraint("units > 0", name="chk_transaction_units_positive"),
         CheckConstraint("nav > 0", name="chk_transaction_nav_positive"),
         CheckConstraint("amount > 0", name="chk_transaction_amount_positive"),

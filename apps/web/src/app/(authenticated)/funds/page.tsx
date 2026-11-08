@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, CheckCircle2, Loader2, Search } from "lucide-react";
 
-import { apiClient } from "@/lib/api";
+import { fundsApi } from "@/lib/funds-api";
 import {
   formatDateString,
   formatNav,
@@ -41,9 +41,7 @@ export default function FundsPage() {
   // Query NAV Freshness Status
   const { data: navStatus } = useQuery<NavStatusResponse>({
     queryKey: ["nav-status"],
-    queryFn: async () => {
-      return await apiClient<NavStatusResponse>("/api/v1/nav/status");
-    },
+    queryFn: async () => fundsApi.getNavStatus(),
     staleTime: 60 * 1000,
   });
 
@@ -74,9 +72,7 @@ export default function FundsPage() {
       params.set("limit", PAGE_SIZE.toString());
       params.set("offset", offset.toString());
 
-      const data = await apiClient<FundSearchResponse>(
-        `/api/v1/funds/search?${params.toString()}`
-      );
+      const data = await fundsApi.searchFunds(params);
 
       if (offset === 0) {
         setAccumulatedItems(data.items);

@@ -1,0 +1,14 @@
+[
+  {
+    "asset_class": "equity",
+    "target_pct": "60.00"
+  },
+  {
+    "asset_class": "debt",
+    "target_pct": "30.00"
+  },
+  {
+    "asset_class": "gold",
+    "target_pct": "10.00"
+  }
+]

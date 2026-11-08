@@ -133,15 +133,29 @@ All API responses must strictly follow the standard envelope:
 - **Average Cost Method (FIFO in Future Phase)**:
   - Positions are derived using Weighted Average Cost Basis (`units`, `avg_cost_nav`, `total_invested`, `realized_gain`). FIFO tax lot matching is reserved for a future phase.
 - **New Error Codes**:
-  - `PORTFOLIO_LIMIT_EXCEEDED` (409): User portfolio count exceeds `MAX_PORTFOLIOS_PER_USER` (20).
-  - `PORTFOLIO_NAME_CONFLICT` (409): Duplicate portfolio name for user.
-  - `PORTFOLIO_NOT_FOUND` (404): Portfolio does not exist or belongs to another user.
-  - `TRANSACTION_NOT_FOUND` (404): Transaction does not exist or belongs to another user.
-  - `TRANSACTION_LIMIT_EXCEEDED` (409): Transactions in portfolio exceed `MAX_TRANSACTIONS_PER_PORTFOLIO` (10,000).
-  - `TARGETS_INVALID` (422): Target allocations exceed 5 rows, duplicate classes, or sum != 100.00%.
-  - `TRANSACTION_AMOUNTS_INVALID` (422): Under-specified or mismatch exceeds tolerance ($|u \times n - a| > \max(1.00, 0.002 \times a)$).
-  - `TRANSACTION_DATE_INVALID` (422): Date < 1990-01-01 or in the future.
-  - `LEDGER_OVERSELL_REJECTED` (409): Cumulative units would drop below zero at or after transaction date.
+  - `PORTFOLIO_NOT_FOUND` (HTTP 404): Portfolio does not exist or belongs to another user (Ownership 404 rule).
+  - `PORTFOLIO_NAME_TAKEN` (HTTP 409): Duplicate portfolio name for user.
+  - `PORTFOLIO_LIMIT_REACHED` (HTTP 409): User portfolio count exceeds `MAX_PORTFOLIOS_PER_USER` (20).
+  - `TARGETS_INVALID` (HTTP 422): Target allocations exceed 5 rows, duplicate classes, or sum != 100.00% (details: `{"sum": str}`).
+  - `TRANSACTION_NOT_FOUND` (HTTP 404): Transaction does not exist or belongs to another user's portfolio.
+  - `FUND_NOT_FOUND` (HTTP 404): Mutual fund scheme code does not exist or is inactive.
+  - `INSUFFICIENT_UNITS` (HTTP 409): Selling more units than available at transaction date (details: `{"available_units": str, "date": str}`).
+  - `LEDGER_INCONSISTENT` (HTTP 409): Ledger mutation violates historical consistency or constraints (details: `{"fund": str, "date": str}`).
+  - `AMOUNT_MISMATCH` (HTTP 422): Provided amount differs from units * NAV beyond allowable tolerance (details: `{"expected": str, "given": str}`).
+  - `TRANSACTION_LIMIT_REACHED` (HTTP 409): Transactions in portfolio exceed `MAX_TRANSACTIONS_PER_PORTFOLIO` (10,000).
+
+## 13. Contract Validation, Testing & Real-Browser E2E
+- **Zod Runtime Validation at API Boundary**:
+  - All responses consumed from backend endpoints are validated through Zod schemas (`apps/web/src/lib/schemas/contract.ts`).
+  - Mismatches throw typed `ApiContractError` (`CONTRACT_MISMATCH`) identifying the failing field path.
+- **Contract Fixtures Rule**:
+  - Frontend page and integration tests must strictly use committed backend contract fixtures (`apps/web/src/test/fixtures/contract/*.json`) generated via `make contract`.
+  - Hand-written API mock shapes for backend-owned data structures are strictly forbidden.
+- **Real-Browser E2E Gate**:
+  - Playwright browser tests (`apps/web/e2e/portfolio-e2e.spec.ts`) run against the live local stack via `make e2e` (`npm run e2e`).
+  - Browser binaries must strictly reside on `D:\caches\playwright` (`PLAYWRIGHT_BROWSERS_PATH=D:\caches\playwright`).
+  - Every UI and ledger mutation change must pass the E2E verification before commit.
+
 
 
 

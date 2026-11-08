@@ -317,3 +317,24 @@ def test_normalize_name() -> None:
         normalize_name("Parag Parikh Flexi Cap Fund - Direct Plan - Growth")
         == "parag parikh flexi cap fund direct plan growth"
     )
+
+
+def test_canonical_classification_json_consistency() -> None:
+    """Verify that docs/classification.json is fully consistent with CANONICAL_CLASSIFICATIONS."""
+    import json
+
+    candidates = [
+        Path(__file__).resolve().parent.parent.parent.parent / "docs" / "classification.json",
+        Path(__file__).resolve().parent.parent.parent / "docs" / "classification.json",
+        Path("/app/docs/classification.json"),
+        Path("/docs/classification.json"),
+    ]
+    json_path = next((p for p in candidates if p.exists()), None)
+    err_msg = "docs/classification.json does not exist. Run export_classification.py"
+    assert json_path is not None and json_path.exists(), err_msg
+
+    with open(json_path, encoding="utf-8") as f:
+        data = json.load(f)
+
+    json_tuples = {(item["asset_class"], item["sub_category"]) for item in data["classifications"]}
+    assert json_tuples == CANONICAL_CLASSIFICATIONS

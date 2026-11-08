@@ -24,6 +24,7 @@ from app.schemas.transaction import (
     HoldingsListResponse,
     PortfolioDetailResponse,
     TransactionCreate,
+    TransactionListResponse,
     TransactionResponse,
     TransactionUpdate,
 )
@@ -54,13 +55,15 @@ def _to_portfolio_response(p: Any) -> PortfolioResponse:
 
 
 def _to_transaction_response(t: Transaction) -> TransactionResponse:
+    raw_type = t.txn_type.lower() if t.txn_type else "buy"
+    valid_type = raw_type if raw_type in ("buy", "sell", "dividend_reinvest") else "buy"
     return TransactionResponse(
         id=t.id,
         portfolio_id=t.portfolio_id,
         fund_id=t.fund_id,
         scheme_code=t.fund.scheme_code if t.fund else None,
         fund_name=t.fund.name if t.fund else None,
-        txn_type=t.txn_type,
+        txn_type=valid_type,  # type: ignore[arg-type]
         txn_date=t.txn_date,
         units=t.units,
         nav=t.nav,
@@ -210,7 +213,7 @@ async def set_portfolio_targets(
 
 @router.get(
     "/{portfolio_id}/transactions",
-    response_model=SuccessEnvelope[list[TransactionResponse]],
+    response_model=SuccessEnvelope[TransactionListResponse],
     status_code=status.HTTP_200_OK,
 )
 async def list_transactions(
@@ -218,12 +221,13 @@ async def list_transactions(
     current_user: CurrentUser,
     session: Annotated[AsyncSession, Depends(get_db_session)],
     fund_id: UUID | None = Query(None, description="Filter transactions by fund ID"),
-) -> SuccessEnvelope[list[TransactionResponse]]:
+) -> SuccessEnvelope[TransactionListResponse]:
     """List transactions for portfolio in deterministic ledger order."""
     txns = await TransactionService.list_transactions(
         session, portfolio_id, user_id=current_user.id, fund_id=fund_id
     )
-    return SuccessEnvelope(data=[_to_transaction_response(t) for t in txns])
+    items = [_to_transaction_response(t) for t in txns]
+    return SuccessEnvelope(data=TransactionListResponse(items=items, has_more=False))
 
 
 @router.post(
@@ -253,7 +257,7 @@ async def add_transaction(
         portfolio_id=portfolio_id,
         user_id=current_user.id,
         fund_id=target_fund_id,
-        txn_type=payload.txn_type,
+        txn_type=payload.txn_type.lower(),
         txn_date=payload.txn_date,
         units=payload.units,
         nav=payload.nav,

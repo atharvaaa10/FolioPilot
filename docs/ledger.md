@@ -19,9 +19,9 @@ To eliminate order ambiguity when replaying transactions, especially across conc
 - Transactions for each mutual fund scheme within a portfolio are sorted by the deterministic tuple:
   $$\text{Sort Key} = (\text{txn\_date ASC}, \text{type\_rank ASC}, \text{created\_at ASC}, \text{id ASC})$$
 - **Intraday Type Precedence**:
-  - `BUY` transactions are assigned `type_rank = 0`.
-  - `SELL` transactions are assigned `type_rank = 1`.
-  - **Rule**: On any given calendar date $D$, all `BUY` events take effect before any `SELL` events. This ensures that purchases and redemptions on the same day never trigger false-positive intraday oversell errors.
+  - `buy` and `dividend_reinvest` transactions are assigned `type_rank = 0`.
+  - `sell` transactions are assigned `type_rank = 1`.
+  - **Rule**: On any given calendar date $D$, all `buy` events take effect before any `sell` events. This ensures that purchases and redemptions on the same day never trigger false-positive intraday oversell errors.
 - **Tie-Breaking**:
   - Transactions on the same date with the same type are ordered by database creation timestamp (`created_at ASC`).
   - Ties are deterministically broken by the UUID primary key (`id ASC`).
@@ -31,8 +31,8 @@ To eliminate order ambiguity when replaying transactions, especially across conc
 ## 3. Positive Sign Convention
 
 A strict positive-only invariant is enforced across all layers (API, schemas, and PostgreSQL check constraints):
-- `units > 0`, `nav > 0`, and `amount > 0` are mandatory for both `BUY` and `SELL` transactions.
-- A sale is denoted strictly by `txn_type = "SELL"`, **never** by negative numbers.
+- `units > 0`, `nav > 0`, and `amount > 0` are mandatory for all transactions (`buy`, `sell`, `dividend_reinvest`).
+- A sale is denoted strictly by `txn_type = "sell"`, **never** by negative numbers.
 - Submissions with negative or zero quantities are rejected at schema validation time.
 
 ---
@@ -71,7 +71,7 @@ To guarantee consistency under concurrent writes without dirty reads or negative
    ```
 3. The mutation is staged in the session.
 4. The full transaction history for the affected scheme is fetched under the lock and replayed.
-5. If cumulative units drop below $0$ at any historical point, the mutation is rejected with `HTTP 409 Conflict` (`LEDGER_OVERSELL_REJECTED`) and the entire transaction rolls back.
+5. If cumulative units drop below $0$ at any historical point, the mutation is rejected with `HTTP 409 Conflict` (`INSUFFICIENT_UNITS` or `LEDGER_INCONSISTENT`) and the entire transaction rolls back.
 6. Only if the ledger invariant holds does the transaction commit and release the lock.
 
 ---
@@ -87,13 +87,13 @@ In Phase 3A, positions and cost bases are calculated using the **Weighted Averag
 - $\text{realized\_gain} = 0$
 
 ### Rules on Replay:
-1. **On BUY($u, n, a$)**:
+1. **On buy / dividend_reinvest ($u, n, a$)**:
    $$\text{units}_{\text{new}} = \text{units} + u$$
    $$\text{invested}_{\text{new}} = \text{invested} + a$$
    $$\text{avg\_nav} = \frac{\text{invested}_{\text{new}}}{\text{units}_{\text{new}}}$$
 
-2. **On SELL($u, n, a$)**:
-   - Check: $u \le \text{units}$ (otherwise abort with `LEDGER_OVERSELL_REJECTED`).
+2. **On sell ($u, n, a$)**:
+   - Check: $u \le \text{units}$ (otherwise abort with `INSUFFICIENT_UNITS`).
    $$\text{cost\_of\_sold} = u \times \text{avg\_nav}$$
    $$\text{realized\_gain} = \text{realized\_gain} + (a - \text{cost\_of\_sold})$$
    $$\text{units}_{\text{new}} = \text{units} - u$$
@@ -106,19 +106,21 @@ In Phase 3A, positions and cost bases are calculated using the **Weighted Averag
 
 ---
 
-## 8. New Phase 3A Error Codes
+## 8. Phase 3A Error Codes
 
-The table below lists all new error codes, their HTTP status, and error condition:
+The table below lists all ten domain error codes, their HTTP status, description, and details payload format:
 
-| Error Code | HTTP Status | Description |
-|:---|:---:|:---|
-| `PORTFOLIO_LIMIT_EXCEEDED` | `409 Conflict` | User reached maximum portfolio limit (`MAX_PORTFOLIOS_PER_USER = 20`). |
-| `PORTFOLIO_NAME_CONFLICT` | `409 Conflict` | Portfolio with the same name already exists for this user. |
-| `PORTFOLIO_NOT_FOUND` | `404 Not Found` | Portfolio does not exist or belongs to another user (Ownership 404 rule). |
-| `TRANSACTION_NOT_FOUND` | `404 Not Found` | Transaction does not exist or belongs to another user's portfolio. |
-| `TRANSACTION_LIMIT_EXCEEDED` | `409 Conflict` | Portfolio reached maximum transaction count (`MAX_TRANSACTIONS_PER_PORTFOLIO = 10,000`). |
-| `TARGETS_INVALID` | `422 Unprocessable Entity` | Target allocations failed validation (exceeds 5 rows, duplicate asset classes, percentages not summing to exactly 100.00%, or invalid precision). |
-| `TRANSACTION_AMOUNTS_INVALID` | `422 Unprocessable Entity` | Fewer than 2 of {units, nav, amount} provided, or supplied amount violates tolerance ($|u \times n - a| > \max(1.00, 0.002 \times a)$). |
-| `TRANSACTION_DATE_INVALID` | `422 Unprocessable Entity` | Transaction date is earlier than 1990-01-01 or later than current calendar date. |
-| `LEDGER_OVERSELL_REJECTED` | `409 Conflict` | SELL transaction or deletion of a prior BUY causes cumulative units to drop below zero. |
+| Error Code | HTTP Status | Description | Details Payload |
+|:---|:---:|:---|:---|
+| `PORTFOLIO_NOT_FOUND` | `404 Not Found` | Portfolio does not exist or belongs to another user (Ownership 404 rule). | `null` |
+| `PORTFOLIO_NAME_TAKEN` | `409 Conflict` | Portfolio name already exists for this user. | `null` |
+| `PORTFOLIO_LIMIT_REACHED` | `409 Conflict` | User reached maximum portfolio limit (`MAX_PORTFOLIOS_PER_USER = 20`). | `null` |
+| `TARGETS_INVALID` | `422 Unprocessable Entity` | Target allocations failed validation (exceeds 5 rows, duplicate asset classes, percentages not summing to exactly 100.00%). | `{"sum": "..."}` |
+| `TRANSACTION_NOT_FOUND` | `404 Not Found` | Transaction does not exist or belongs to another user's portfolio. | `null` |
+| `FUND_NOT_FOUND` | `404 Not Found` | Mutual fund scheme code does not exist or is inactive. | `null` |
+| `INSUFFICIENT_UNITS` | `409 Conflict` | Selling more units than available at transaction date. | `{"available_units": "...", "date": "YYYY-MM-DD"}` |
+| `LEDGER_INCONSISTENT` | `409 Conflict` | Mutation causes subsequent historical redemption to fail due to negative unit balance. | `{"fund": "...", "date": "YYYY-MM-DD"}` |
+| `AMOUNT_MISMATCH` | `422 Unprocessable Entity` | Provided amount differs from units * NAV beyond allowable tolerance ($|u \times n - a| > \max(1.00, 0.002 \times a)$). | `{"expected": "...", "given": "..."}` |
+| `TRANSACTION_LIMIT_REACHED` | `409 Conflict` | Portfolio reached maximum transaction count (`MAX_TRANSACTIONS_PER_PORTFOLIO = 10,000`). | `null` |
+
 

@@ -33,7 +33,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -107,12 +106,13 @@ export default function PortfoliosPage() {
         </div>
 
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-          <DialogTrigger asChild>
-            <Button className="inline-flex items-center gap-2">
-              <FolderPlus className="h-4 w-4" />
-              <span>Create Portfolio</span>
-            </Button>
-          </DialogTrigger>
+          <Button
+            onClick={() => setIsCreateOpen(true)}
+            className="inline-flex items-center gap-2"
+          >
+            <FolderPlus className="h-4 w-4" />
+            <span>Create Portfolio</span>
+          </Button>
           <DialogContent>
             <form onSubmit={handleCreateSubmit}>
               <DialogHeader>
