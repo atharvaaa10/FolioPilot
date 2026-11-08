@@ -23,7 +23,7 @@ export function NavHeader() {
             {APP_NAME}
           </Link>
           <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground uppercase">
-            Phase 1
+            Phase 2
           </span>
         </div>
 
@@ -37,6 +37,12 @@ export function NavHeader() {
                 className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
               >
                 Dashboard
+              </Link>
+              <Link
+                href="/funds"
+                className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Funds
               </Link>
               <span className="hidden text-xs text-muted-foreground sm:inline-block">
                 {user.email}
