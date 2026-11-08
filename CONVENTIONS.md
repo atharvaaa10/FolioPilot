@@ -38,7 +38,9 @@ All API responses must strictly follow the standard envelope:
   ```
 
 ## 4. Error Hierarchy & Codes
-- `NotFoundError` -> `NOT_FOUND` (HTTP 404)
+- `NotFoundError`:
+  - `NOT_FOUND` (HTTP 404)
+  - `FUND_NOT_FOUND` (HTTP 404) - Mutual fund scheme code does not exist or is inactive
 - `ValidationError` -> `VALIDATION_ERROR` (HTTP 422)
 - `UnauthorizedError`:
   - `UNAUTHORIZED` (HTTP 401)
@@ -67,12 +69,14 @@ All API responses must strictly follow the standard envelope:
 ## 6. Financial & Numerical Precision Rules
 - **Money**: Always store in PostgreSQL as `NUMERIC(15, 2)`. Always represent in Python as `decimal.Decimal`. **Never use `float`** for currency.
 - **Mutual Fund Units**: Store as `NUMERIC(18, 4)`. Represent in Python as `Decimal`.
-- **Net Asset Value (NAV)**: Store as `NUMERIC(18, 4)`. Represent in Python as `Decimal`.
+- **Net Asset Value (NAV)**: Store in PostgreSQL as `NUMERIC(20, 8)`. Represent in Python as `Decimal`. (Precision of 8 decimals avoids silent rounding on AMFI schemes such as liquid or overnight funds quoting up to 5-8 decimal places).
+- **Tracked Funds Storage**: Daily NAV master records latest NAV for all active schemes; full historical daily NAV timeseries (`nav_history`) is stored strictly for tracked funds (`funds.is_tracked = True`).
 
-## 7. Timestamps & Timezones
-- All timestamps in the database must use `TIMESTAMP WITH TIME ZONE` (`DateTime(timezone=True)`).
-- All timestamps must be stored and manipulated in **UTC**.
-- Celery worker/beat runs on `UTC`. When presenting dates or computing IST cutoffs (AMFI NAV, Indian market hours), use explicit conversion to `Asia/Kolkata`.
+## 7. Timestamps, Dates & Timezones
+- All audit timestamps in the database must use `TIMESTAMP WITH TIME ZONE` (`DateTime(timezone=True)`).
+- All audit timestamps must be stored and manipulated in **UTC**.
+- NAV dates are discrete calendar dates (`DATE` in PostgreSQL, `datetime.date` in Python), representing the trading/NAV cutoff date without arbitrary time components.
+- Celery worker/beat runs on `UTC`. When presenting dates or computing IST cutoffs (AMFI NAV publishes after 21:00 IST / 15:30 UTC), use explicit conversion to `Asia/Kolkata`.
 
 ## 8. Database Migrations
 - Managed solely via Alembic with asyncpg.
@@ -92,5 +96,19 @@ All API responses must strictly follow the standard envelope:
 - **Deterministic SSR Markup**: Server and initial client render must match identically. Never invoke `new Date()`, `Date.now()`, `Math.random()`, or read `window`/`localStorage` during render.
 - **Client Timestamps**: For live or user-local timestamps, use `<LocalTime timestamp={...} />` (renders placeholder on server/initial mount, formats on client via `useSyncExternalStore`).
 - **Locale & Currency**: Format dates and currency with explicit locale (`en-IN`) and timezone (`Asia/Kolkata`), or format strictly client-side to prevent UTC/IST server-client mismatches.
+
+## 11. Fund Master & NAV Ingestion Architecture
+- **Classification Philosophy**:
+  - Deterministic table-driven mapping for all 104+ known AMFI scheme categories into standard `asset_class` (`equity`, `debt`, `hybrid`, `commodity`, `solution_oriented`, `other`) and `sub_category`.
+  - Name-based heuristics for specialized asset sub-classes (Gold/Silver ETFs and funds, Index funds, Arbitrage, International funds).
+  - Robust fallback to `asset_class="other"`, `sub_category="unknown"` to ensure ingestion never crashes on novel or unrecognized AMFI categories.
+- **Distributed Ingestion Lock**:
+  - Celery sync tasks (`sync_amfi_nav`) acquire a distributed Redis lock (`lock:sync_amfi_nav`) with a Lua owner check before running.
+  - If a sync is already running, concurrent triggers gracefully yield and record a `SKIPPED` status in `nav_sync_runs`.
+- **Sanity Guard Thresholds**:
+  - Daily AMFI sync aborts without mutating records if parsed fund count < 5,000 or drops below 70% of previously active funds, or if content validation fails (e.g. AMFI returns an HTML error page).
+- **Historical Backfill**:
+  - Backfilling historical NAV uses `mfapi.in` with a 1-second polite rate limit, idempotently upserting into `nav_history`.
+
 
 

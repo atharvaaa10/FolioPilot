@@ -42,6 +42,8 @@ make migrate
   - `/login`: Investor sign in with client and server validation
   - `/register`: New investor account registration with Argon2id hashing
   - `/dashboard`: Protected investor dashboard (AuthGate)
+  - `/funds`: Mutual fund directory with debounced search, filters, and freshness status
+  - `/funds/[schemeCode]`: Fund detail view with interactive NAV history chart and track toggle
 - **Backend API Endpoints**:
   - `POST /api/v1/auth/register`: Create user account & initial refresh token family (201)
   - `POST /api/v1/auth/login`: Authenticate credentials with timing protection (200)
@@ -49,6 +51,11 @@ make migrate
   - `POST /api/v1/auth/logout`: Revoke active token family & clear cookie (200)
   - `POST /api/v1/auth/logout-all`: Revoke all sessions across all devices for user (200)
   - `GET /api/v1/users/me`: Return authenticated user profile (200)
+  - `GET /api/v1/funds/search`: Search mutual funds with trigram similarity, filters & 60 req/min rate limit (200)
+  - `GET /api/v1/funds/{scheme_code}`: Return fund master details and latest NAV (200)
+  - `GET /api/v1/funds/{scheme_code}/nav`: Return historical daily NAV timeseries for tracked fund (200)
+  - `POST /api/v1/funds/{scheme_code}/track`: Mark fund as tracked and enqueue background backfill (202)
+  - `GET /api/v1/nav/status`: Status of latest AMFI NAV ingestion and freshness indicator (200)
   - `GET /api/v1/health`: Lightweight liveness probe (200)
   - `GET /api/v1/health/ready`: PostgreSQL & Redis readiness probe (200/503)
   - `GET /docs`: Swagger OpenAPI documentation (development mode)
@@ -130,6 +137,8 @@ npm --prefix apps/web run build
 | `make typecheck` | Run mypy strict on backend and TypeScript compiler on web |
 | `make shell-api` | Open a bash shell in the running API container |
 | `make psql` | Open a PostgreSQL shell connected to the database |
+| `make sync-nav` | Trigger one-off AMFI NAV sync from terminal |
+| `make backfill-nav CODE=<scheme_code>` | Trigger historical NAV backfill for a scheme from mfapi.in |
 | `make rebuild-web` | Rebuild web container and renew anonymous node_modules volume |
 | `make rebuild-python` | Rebuild api, worker & beat containers and renew .venv volume |
 | `make smoke` | Run health and route smoke checks across web and api services (PowerShell-only script `scripts/smoke.ps1` for local dev; not run in Linux CI) |
@@ -179,12 +188,46 @@ Both container environments also include entrypoint lock-hash guards that detect
 
 ---
 
+## Mutual Fund Master & NAV Ingestion (Phase 2)
+
+```mermaid
+flowchart TD
+    AMFI["AMFI NAVAll.txt (Daily Portal)"]
+    MFAPI["mfapi.in (Historical API)"]
+    Beat["Celery Beat (21:30 & 06:00 IST)"]
+    Worker["Celery Worker Tasks"]
+    Lock[("Redis Distributed Lock")]
+    DB[("PostgreSQL 16")]
+
+    Beat -- "sync_amfi_nav" --> Worker
+    Worker -- "Acquire lock:sync_amfi_nav" --> Lock
+    Worker -- "Fetch & Stream Parse" --> AMFI
+    Worker -- "Batch Upsert (500/chunk)" --> DB
+    Worker -- "Record Status" --> DB
+
+    User["Investor / UI"] -- "POST /funds/{code}/track" --> Worker
+    Worker -- "Fetch Scheme Timeseries" --> MFAPI
+    Worker -- "Upsert nav_history" --> DB
+```
+
+### Ingestion & Data Architecture
+- **Master Data**: Fetched daily from AMFI portal (`NAVAll.txt`). Parses ~15,000 active Indian mutual fund schemes across all AMCs.
+- **Classification Engine**: Deterministic classification into `asset_class` (`equity`, `debt`, `hybrid`, `commodity`, `solution_oriented`, `other`) and `sub_category`, with rule-based heuristics for Index Funds, ETFs, and Gold.
+- **Distributed Concurrency Guard**: Redis-backed distributed lock with Lua script owner verification prevents overlapping ingestion jobs.
+- **Sanity Protection**: Aborts ingestion without mutating the database if parsed records < 5,000 or < 70% of previously active schemes, protecting against truncated feeds or upstream HTML errors.
+- **Historical Backfill**: Historical daily NAV data is fetched on-demand from `mfapi.in` strictly for tracked schemes (`funds.is_tracked = True`) with a 1-second polite rate limit.
+- **Periodic Schedules**:
+  - `sync-amfi-nav-evening`: Runs daily at 21:30 IST (`16:00 UTC`), after AMC cutoffs.
+  - `sync-amfi-nav-morning`: Runs daily at 06:00 IST (`00:30 UTC`), catching late-reporting funds.
+
+---
+
 ## Roadmap
 
 - **Phase 0**: Architecture foundation & conventions (Completed)
 - **Phase 1**: Authentication (JWT with refresh rotation, reuse detection, rate limiting) (Completed)
-- **Phase 2**: AMFI Mutual Fund Master & NAV synchronization (Next)
-- **Phase 3**: Portfolios, SIPs & transaction ledger
+- **Phase 2**: AMFI Mutual Fund Master & NAV synchronization (Completed)
+- **Phase 3**: Portfolios, SIPs & transaction ledger (Next)
 - **Phase 4**: Statement imports (Excel & Consolidated Account Statement / CAS PDF)
 - **Phase 5**: Valuation engine (XIRR) & capital gains tax calculation
 - **Phase 6**: Rebalancing, risk profiling & Monte Carlo goal simulation

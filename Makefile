@@ -1,4 +1,4 @@
-.PHONY: up down logs migrate makemigration test test-api test-web lint format typecheck shell-api psql rebuild-web rebuild-python smoke
+.PHONY: up down logs migrate makemigration test test-api test-web lint format typecheck shell-api psql rebuild-web rebuild-python smoke sync-nav backfill-nav
 
 # Default docker compose command
 DC = docker compose
@@ -8,6 +8,12 @@ up:
 
 down:
 	$(DC) down
+
+sync-nav:
+	$(DC) exec api python -m app.cli sync-nav
+
+backfill-nav:
+	$(DC) exec api python -m app.cli backfill-nav $(CODE)
 
 rebuild-web:
 	$(DC) up -d --build --no-deps -V web

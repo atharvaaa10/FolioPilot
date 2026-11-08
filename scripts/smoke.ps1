@@ -26,7 +26,7 @@ try {
 }
 
 # Check 2: Web Frontend Routes
-$routes = @("/", "/login", "/register", "/dashboard")
+$routes = @("/", "/login", "/register", "/dashboard", "/funds")
 Write-Host "[2/3] Checking Web frontend routes..."
 foreach ($route in $routes) {
     $url = "http://localhost:3000$route"
