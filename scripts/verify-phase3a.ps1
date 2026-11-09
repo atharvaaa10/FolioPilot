@@ -296,53 +296,53 @@ $hAuthA = @{
 $createPortResp = curl.exe -s -w "`nHTTP %{http_code}`n" -X POST http://localhost:8000/api/v1/portfolios `
     -H "Authorization: Bearer $tokenA" `
     -H "Content-Type: application/json" `
-    -d '{"name": "Verification Portfolio", "description": "Phase 3A E2E test"}'
+    -d "{\`"name\`": \`"Verification Portfolio\`", \`"description\`": \`"Phase 3A E2E test\`"}"
 Run-Step -Title "Create Portfolio for User A" -CommandLine "POST /portfolios" -Action { $createPortResp }
 
-$pId = ($createPortResp -split "`n")[0] | ConvertFrom-Json | Select-Object -ExpandProperty data | Select-Object -ExpandProperty id
+$portfolioId = ($createPortResp -split "`n")[0] | ConvertFrom-Json | Select-Object -ExpandProperty data | Select-Object -ExpandProperty id
 
 # 2. PUT targets 60/30/10
-Run-Step -Title "Configure Target Allocations 60/30/10" -CommandLine "PUT /portfolios/$pId/targets" -Action {
-    curl.exe -s -w "`nHTTP %{http_code}`n" -X PUT "http://localhost:8000/api/v1/portfolios/$pId/targets" `
+Run-Step -Title "Configure Target Allocations 60/30/10" -CommandLine "PUT /portfolios/$portfolioId/targets" -Action {
+    curl.exe -s -w "`nHTTP %{http_code}`n" -X PUT "http://localhost:8000/api/v1/portfolios/$portfolioId/targets" `
         -H "Authorization: Bearer $tokenA" `
         -H "Content-Type: application/json" `
-        -d '{"targets": [{"asset_class": "equity", "target_pct": "60.00"}, {"asset_class": "debt", "target_pct": "30.00"}, {"asset_class": "gold", "target_pct": "10.00"}]}'
+        -d "{\`"targets\`": [{\`"asset_class\`": \`"equity\`", \`"target_pct\`": \`"60.00\`"}, {\`"asset_class\`": \`"debt\`", \`"target_pct\`": \`"30.00\`"}, {\`"asset_class\`": \`"gold\`", \`"target_pct\`": \`"10.00\`"}]}"
 }
 
 # 3. PUT targets 33.33/33.33/33.33 (expect 422 TARGETS_INVALID)
-Run-Step -Title "PUT Targets Invalid Sum (33.33 * 3 = 99.99)" -CommandLine "PUT /portfolios/$pId/targets (expect 422)" -Action {
-    curl.exe -s -w "`nHTTP %{http_code}`n" -X PUT "http://localhost:8000/api/v1/portfolios/$pId/targets" `
+Run-Step -Title "PUT Targets Invalid Sum (33.33 * 3 = 99.99)" -CommandLine "PUT /portfolios/$portfolioId/targets (expect 422)" -Action {
+    curl.exe -s -w "`nHTTP %{http_code}`n" -X PUT "http://localhost:8000/api/v1/portfolios/$portfolioId/targets" `
         -H "Authorization: Bearer $tokenA" `
         -H "Content-Type: application/json" `
-        -d '{"targets": [{"asset_class": "equity", "target_pct": "33.33"}, {"asset_class": "debt", "target_pct": "33.33"}, {"asset_class": "gold", "target_pct": "33.33"}]}'
+        -d "{\`"targets\`": [{\`"asset_class\`": \`"equity\`", \`"target_pct\`": \`"33.33\`"}, {\`"asset_class\`": \`"debt\`", \`"target_pct\`": \`"33.33\`"}, {\`"asset_class\`": \`"gold\`", \`"target_pct\`": \`"33.33\`"}]}"
 }
 
 # 4. POST buy 2025-01-10 units 100 nav 50 amount 5000
-$rBuy1 = curl.exe -s -w "`nHTTP %{http_code}`n" -X POST "http://localhost:8000/api/v1/portfolios/$pId/transactions" `
+$rBuy1 = curl.exe -s -w "`nHTTP %{http_code}`n" -X POST "http://localhost:8000/api/v1/portfolios/$portfolioId/transactions" `
     -H "Authorization: Bearer $tokenA" `
     -H "Content-Type: application/json" `
-    -d '{"scheme_code": 122639, "txn_type": "buy", "txn_date": "2025-01-10", "units": "100.0000", "nav": "50.00000000", "amount": "5000.00"}'
+    -d "{\`"scheme_code\`": 122639, \`"txn_type\`": \`"buy\`", \`"txn_date\`": \`"2025-01-10\`", \`"units\`": \`"100.0000\`", \`"nav\`": \`"50.00000000\`", \`"amount\`": \`"5000.00\`"}"
 Run-Step -Title "Add Buy Txn 1: 100 units @ 50 on 2025-01-10" -CommandLine "POST /transactions (buy 1)" -Action { $rBuy1 }
 $t1Id = ($rBuy1 -split "`n")[0] | ConvertFrom-Json | Select-Object -ExpandProperty data | Select-Object -ExpandProperty id
 
 # 5. POST buy 2025-02-10 units 50 nav 60 amount 3000
-$rBuy2 = curl.exe -s -w "`nHTTP %{http_code}`n" -X POST "http://localhost:8000/api/v1/portfolios/$pId/transactions" `
+$rBuy2 = curl.exe -s -w "`nHTTP %{http_code}`n" -X POST "http://localhost:8000/api/v1/portfolios/$portfolioId/transactions" `
     -H "Authorization: Bearer $tokenA" `
     -H "Content-Type: application/json" `
-    -d '{"scheme_code": 122639, "txn_type": "buy", "txn_date": "2025-02-10", "units": "50.0000", "nav": "60.00000000", "amount": "3000.00"}'
+    -d "{\`"scheme_code\`": 122639, \`"txn_type\`": \`"buy\`", \`"txn_date\`": \`"2025-02-10\`", \`"units\`": \`"50.0000\`", \`"nav\`": \`"60.00000000\`", \`"amount\`": \`"3000.00\`"}"
 Run-Step -Title "Add Buy Txn 2: 50 units @ 60 on 2025-02-10" -CommandLine "POST /transactions (buy 2)" -Action { $rBuy2 }
 $t2Id = ($rBuy2 -split "`n")[0] | ConvertFrom-Json | Select-Object -ExpandProperty data | Select-Object -ExpandProperty id
 
 # 6. POST sell 2025-03-10 units 30 nav 70 amount 2100
-$rSell1 = curl.exe -s -w "`nHTTP %{http_code}`n" -X POST "http://localhost:8000/api/v1/portfolios/$pId/transactions" `
+$rSell1 = curl.exe -s -w "`nHTTP %{http_code}`n" -X POST "http://localhost:8000/api/v1/portfolios/$portfolioId/transactions" `
     -H "Authorization: Bearer $tokenA" `
     -H "Content-Type: application/json" `
-    -d '{"scheme_code": 122639, "txn_type": "sell", "txn_date": "2025-03-10", "units": "30.0000", "nav": "70.00000000", "amount": "2100.00"}'
+    -d "{\`"scheme_code\`": 122639, \`"txn_type\`": \`"sell\`", \`"txn_date\`": \`"2025-03-10\`", \`"units\`": \`"30.0000\`", \`"nav\`": \`"70.00000000\`", \`"amount\`": \`"2100.00\`"}"
 Run-Step -Title "Add Sell Txn 3: 30 units @ 70 on 2025-03-10" -CommandLine "POST /transactions (sell 1)" -Action { $rSell1 }
 
 # 7. GET holdings: compare with worked example expected numbers
-Run-Step -Title "GET Holdings and Assert Calculated Position" -CommandLine "GET /portfolios/$pId/holdings" -Action {
-    $raw = curl.exe -s "http://localhost:8000/api/v1/portfolios/$pId/holdings" -H "Authorization: Bearer $tokenA"
+Run-Step -Title "GET Holdings and Assert Calculated Position" -CommandLine "GET /portfolios/$portfolioId/holdings" -Action {
+    $raw = curl.exe -s "http://localhost:8000/api/v1/portfolios/$portfolioId/holdings" -H "Authorization: Bearer $tokenA"
     Write-Host "Raw holdings response: $raw"
     $obj = $raw | ConvertFrom-Json
     $item = $obj.data.items[0]
@@ -368,57 +368,57 @@ Run-Step -Title "GET Holdings and Assert Calculated Position" -CommandLine "GET 
 
 # 8. Try to sell 121 units (expect 409 INSUFFICIENT_UNITS)
 Run-Step -Title "Overdraft: Sell 121 Units on 2025-03-11 (Expect 409 INSUFFICIENT_UNITS)" -CommandLine "POST /transactions (121 units)" -Action {
-    curl.exe -s -w "`nHTTP %{http_code}`n" -X POST "http://localhost:8000/api/v1/portfolios/$pId/transactions" `
+    curl.exe -s -w "`nHTTP %{http_code}`n" -X POST "http://localhost:8000/api/v1/portfolios/$portfolioId/transactions" `
         -H "Authorization: Bearer $tokenA" `
         -H "Content-Type: application/json" `
-        -d '{"scheme_code": 122639, "txn_type": "sell", "txn_date": "2025-03-11", "units": "121.0000", "nav": "70.00000000", "amount": "8470.00"}'
+        -d "{\`"scheme_code\`": 122639, \`"txn_type\`": \`"sell\`", \`"txn_date\`": \`"2025-03-11\`", \`"units\`": \`"121.0000\`", \`"nav\`": \`"70.00000000\`", \`"amount\`": \`"8470.00\`"}"
 }
 
 # 9. Add sell of 100 units on 2025-04-10 (HTTP 201)
-$rSell2 = curl.exe -s -w "`nHTTP %{http_code}`n" -X POST "http://localhost:8000/api/v1/portfolios/$pId/transactions" `
+$rSell2 = curl.exe -s -w "`nHTTP %{http_code}`n" -X POST "http://localhost:8000/api/v1/portfolios/$portfolioId/transactions" `
     -H "Authorization: Bearer $tokenA" `
     -H "Content-Type: application/json" `
-    -d '{"scheme_code": 122639, "txn_type": "sell", "txn_date": "2025-04-10", "units": "100.0000", "nav": "70.00000000", "amount": "7000.00"}'
+    -d "{\`"scheme_code\`": 122639, \`"txn_type\`": \`"sell\`", \`"txn_date\`": \`"2025-04-10\`", \`"units\`": \`"100.0000\`", \`"nav\`": \`"70.00000000\`", \`"amount\`": \`"7000.00\`"}"
 Run-Step -Title "Add Sell Txn 4: 100 units on 2025-04-10 (Leaves 20 units)" -CommandLine "POST /transactions (sell 2)" -Action { $rSell2 }
 $t4Id = ($rSell2 -split "`n")[0] | ConvertFrom-Json | Select-Object -ExpandProperty data | Select-Object -ExpandProperty id
 
 # 10. Try deleting the first buy (expect 409 LEDGER_INCONSISTENT with date 2025-04-10)
 Run-Step -Title "Delete First Buy (Expect 409 LEDGER_INCONSISTENT due to downstream oversell)" -CommandLine "DELETE /transactions/$t1Id" -Action {
-    curl.exe -s -w "`nHTTP %{http_code}`n" -X DELETE "http://localhost:8000/api/v1/portfolios/$pId/transactions/$t1Id" `
+    curl.exe -s -w "`nHTTP %{http_code}`n" -X DELETE "http://localhost:8000/api/v1/portfolios/$portfolioId/transactions/$t1Id" `
         -H "Authorization: Bearer $tokenA"
 }
 
 # 11. PATCH second buy notes (200)
 Run-Step -Title "PATCH Second Buy Notes (HTTP 200)" -CommandLine "PATCH /transactions/$t2Id" -Action {
-    curl.exe -s -w "`nHTTP %{http_code}`n" -X PATCH "http://localhost:8000/api/v1/portfolios/$pId/transactions/$t2Id" `
+    curl.exe -s -w "`nHTTP %{http_code}`n" -X PATCH "http://localhost:8000/api/v1/portfolios/$portfolioId/transactions/$t2Id" `
         -H "Authorization: Bearer $tokenA" `
         -H "Content-Type: application/json" `
-        -d '{"notes": "Updated investment notes"}'
+        -d "{\`"notes\`": \`"Updated investment notes\`"}"
 }
 
 # 12. PATCH second buy units to 10 (expect 409 LEDGER_INCONSISTENT)
 Run-Step -Title "PATCH Second Buy Units to 10 (Expect 409 LEDGER_INCONSISTENT)" -CommandLine "PATCH /transactions/$t2Id (units=10)" -Action {
-    curl.exe -s -w "`nHTTP %{http_code}`n" -X PATCH "http://localhost:8000/api/v1/portfolios/$pId/transactions/$t2Id" `
+    curl.exe -s -w "`nHTTP %{http_code}`n" -X PATCH "http://localhost:8000/api/v1/portfolios/$portfolioId/transactions/$t2Id" `
         -H "Authorization: Bearer $tokenA" `
         -H "Content-Type: application/json" `
-        -d '{"units": "10.0000"}'
+        -d "{\`"units\`": \`"10.0000\`"}"
 }
 
 # 13. Delete the 100-unit sell (success 204)
 Run-Step -Title "Delete 100-Unit Sell (HTTP 204)" -CommandLine "DELETE /transactions/$t4Id" -Action {
-    curl.exe -s -w "`nHTTP %{http_code}`n" -X DELETE "http://localhost:8000/api/v1/portfolios/$pId/transactions/$t4Id" `
+    curl.exe -s -w "`nHTTP %{http_code}`n" -X DELETE "http://localhost:8000/api/v1/portfolios/$portfolioId/transactions/$t4Id" `
         -H "Authorization: Bearer $tokenA"
 }
 
 # 14. Delete first buy again (now succeeds because 50 bought and 30 sold stays >= 0)
 Run-Step -Title "Delete First Buy Again (HTTP 204 Success Now)" -CommandLine "DELETE /transactions/$t1Id" -Action {
-    curl.exe -s -w "`nHTTP %{http_code}`n" -X DELETE "http://localhost:8000/api/v1/portfolios/$pId/transactions/$t1Id" `
+    curl.exe -s -w "`nHTTP %{http_code}`n" -X DELETE "http://localhost:8000/api/v1/portfolios/$portfolioId/transactions/$t1Id" `
         -H "Authorization: Bearer $tokenA"
 }
 
 # 15. GET holdings: units 20.0000, cost_basis 1200.00, avg_cost 60.0000
-Run-Step -Title "GET Holdings After Deletions (20 units @ avg 60.0000)" -CommandLine "GET /portfolios/$pId/holdings" -Action {
-    $raw = curl.exe -s "http://localhost:8000/api/v1/portfolios/$pId/holdings" -H "Authorization: Bearer $tokenA"
+Run-Step -Title "GET Holdings After Deletions (20 units @ avg 60.0000)" -CommandLine "GET /portfolios/$portfolioId/holdings" -Action {
+    $raw = curl.exe -s "http://localhost:8000/api/v1/portfolios/$portfolioId/holdings" -H "Authorization: Bearer $tokenA"
     $obj = $raw | ConvertFrom-Json
     $item = $obj.data.items[0]
 
@@ -431,19 +431,19 @@ Run-Step -Title "GET Holdings After Deletions (20 units @ avg 60.0000)" -Command
 }
 
 # 16. User B attempts access to User A's resources (Ownership 404 rule)
-Run-Step -Title "User B Queries User A Portfolio (Expect 404 PORTFOLIO_NOT_FOUND)" -CommandLine "GET /portfolios/$pId (as User B)" -Action {
-    curl.exe -s -w "`nHTTP %{http_code}`n" "http://localhost:8000/api/v1/portfolios/$pId" -H "Authorization: Bearer $tokenB"
+Run-Step -Title "User B Queries User A Portfolio (Expect 404 PORTFOLIO_NOT_FOUND)" -CommandLine "GET /portfolios/$portfolioId (as User B)" -Action {
+    curl.exe -s -w "`nHTTP %{http_code}`n" "http://localhost:8000/api/v1/portfolios/$portfolioId" -H "Authorization: Bearer $tokenB"
 }
-Run-Step -Title "User B Queries User A Holdings (Expect 404 PORTFOLIO_NOT_FOUND)" -CommandLine "GET /portfolios/$pId/holdings (as User B)" -Action {
-    curl.exe -s -w "`nHTTP %{http_code}`n" "http://localhost:8000/api/v1/portfolios/$pId/holdings" -H "Authorization: Bearer $tokenB"
+Run-Step -Title "User B Queries User A Holdings (Expect 404 PORTFOLIO_NOT_FOUND)" -CommandLine "GET /portfolios/$portfolioId/holdings (as User B)" -Action {
+    curl.exe -s -w "`nHTTP %{http_code}`n" "http://localhost:8000/api/v1/portfolios/$portfolioId/holdings" -H "Authorization: Bearer $tokenB"
 }
-Run-Step -Title "User B Queries User A Transaction (Expect 404 PORTFOLIO_NOT_FOUND)" -CommandLine "GET /portfolios/$pId/transactions/$t2Id (as User B)" -Action {
-    curl.exe -s -w "`nHTTP %{http_code}`n" "http://localhost:8000/api/v1/portfolios/$pId/transactions/$t2Id" -H "Authorization: Bearer $tokenB"
+Run-Step -Title "User B Queries User A Transaction (Expect 404 PORTFOLIO_NOT_FOUND)" -CommandLine "GET /portfolios/$portfolioId/transactions/$t2Id (as User B)" -Action {
+    curl.exe -s -w "`nHTTP %{http_code}`n" "http://localhost:8000/api/v1/portfolios/$portfolioId/transactions/$t2Id" -H "Authorization: Bearer $tokenB"
 }
 
 # 17. Inspect transaction response for lowercase txn_type and field names txn_type, txn_date
-Run-Step -Title "Transaction Response Fields and Lowercase txn_type" -CommandLine "GET /portfolios/$pId/transactions" -Action {
-    curl.exe -s "http://localhost:8000/api/v1/portfolios/$pId/transactions" -H "Authorization: Bearer $tokenA"
+Run-Step -Title "Transaction Response Fields and Lowercase txn_type" -CommandLine "GET /portfolios/$portfolioId/transactions" -Action {
+    curl.exe -s "http://localhost:8000/api/v1/portfolios/$portfolioId/transactions" -H "Authorization: Bearer $tokenA"
 }
 
 # ==============================================================================
@@ -479,8 +479,8 @@ Run-Step -Title "Frontend Typecheck (npm run typecheck)" -CommandLine "npm --pre
     npm --prefix apps/web run typecheck
 }
 
-Run-Step -Title "Frontend Unit & Integration Tests (vitest verbose)" -CommandLine "npx --prefix apps/web vitest run --reporter=verbose" -Action {
-    npx --prefix apps/web vitest run --reporter=verbose
+Run-Step -Title "Frontend Unit & Integration Tests (vitest verbose)" -CommandLine "npm --prefix apps/web run test -- --reporter=verbose" -Action {
+    npm --prefix apps/web run test -- --reporter=verbose
 }
 
 Run-Step -Title "Frontend Next.js Build" -CommandLine "npm --prefix apps/web run build" -Action {

@@ -336,5 +336,12 @@ def test_canonical_classification_json_consistency() -> None:
     with open(json_path, encoding="utf-8") as f:
         data = json.load(f)
 
+    root_json = Path(__file__).resolve().parent.parent.parent.parent / "docs" / "classification.json"
+    api_json = Path(__file__).resolve().parent.parent.parent / "docs" / "classification.json"
+    if root_json.exists() and api_json.exists():
+        assert root_json.read_bytes() == api_json.read_bytes(), (
+            "docs/classification.json and apps/api/docs/classification.json must be byte-for-byte identical"
+        )
+
     json_tuples = {(item["asset_class"], item["sub_category"]) for item in data["classifications"]}
     assert json_tuples == CANONICAL_CLASSIFICATIONS

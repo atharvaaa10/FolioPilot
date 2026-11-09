@@ -9,24 +9,31 @@ import { LocalTime } from "@/components/ui/local-time";
 
 describe("Status card SSR & hydration safety", () => {
   let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+  let activeClients: QueryClient[] = [];
 
   beforeEach(() => {
     consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
   afterEach(() => {
+    activeClients.forEach((c) => c.clear());
+    activeClients = [];
     consoleErrorSpy.mockRestore();
     document.body.innerHTML = "";
   });
 
   function createTestQueryClient() {
-    return new QueryClient({
+    const client = new QueryClient({
       defaultOptions: {
         queries: {
           retry: false,
+          refetchOnWindowFocus: false,
+          staleTime: Infinity,
         },
       },
     });
+    activeClients.push(client);
+    return client;
   }
 
   it("renderToString of HomePage status card renders placeholder and no clock pattern", () => {
