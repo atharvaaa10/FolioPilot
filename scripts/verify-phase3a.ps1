@@ -250,19 +250,22 @@ Run-Step -Title "CORS Preflight OPTIONS /api/v1/users/me" -CommandLine "curl.exe
 }
 
 # Register fresh user to test actual CORS request and response headers
+# Clear test registration rate limits in Redis so back-to-back verification runs never get blocked
+docker compose exec -T redis redis-cli EVAL "for _,k in ipairs(redis.call('keys','rl:reg_ip*')) do redis.call('del',k) end" 0 2>$null | Out-Null
+
 $rnd = Get-Random -Minimum 100000 -Maximum 999999
 $emailA = "verify_user_a_$rnd@example.com"
 $pwdA = "SuperSecret123!"
 
+$regRespRaw = curl.exe -s -X POST http://localhost:8000/api/v1/auth/register `
+    -H "Content-Type: application/json" `
+    -d "{\`"email\`": \`"$emailA\`", \`"password\`": \`"$pwdA\`"}"
+
 Run-Step -Title "Register Fresh User A (Raw Body)" -CommandLine "curl.exe -s -X POST http://localhost:8000/api/v1/auth/register" -Action {
-    curl.exe -s -X POST http://localhost:8000/api/v1/auth/register `
-        -H "Content-Type: application/json" `
-        -d "{\`"email\`": \`"$emailA\`", \`"password\`": \`"$pwdA\`"}"
+    $regRespRaw
 }
 
-$regResp = curl.exe -s -X POST http://localhost:8000/api/v1/auth/register `
-    -H "Content-Type: application/json" `
-    -d "{\`"email\`": \`"verify_user_tok_$rnd@example.com\`", \`"password\`": \`"$pwdA\`"}" | ConvertFrom-Json
+$regResp = $regRespRaw | ConvertFrom-Json
 $tokenA = $regResp.data.access_token
 
 Run-Step -Title "GET /api/v1/users/me with Origin and Auth Token" -CommandLine "curl.exe -i -s http://localhost:8000/api/v1/users/me" -Action {
