@@ -7,6 +7,7 @@ from app.api.v1.funds import router as funds_router
 from app.api.v1.health import router as health_router
 from app.api.v1.nav import router as nav_router
 from app.api.v1.portfolios import router as portfolios_router
+from app.api.v1.sips import router as sips_router
 from app.api.v1.users import router as users_router
 
 v1_router = APIRouter(prefix="/v1")
@@ -16,5 +17,6 @@ v1_router.include_router(users_router)
 v1_router.include_router(funds_router)
 v1_router.include_router(nav_router)
 v1_router.include_router(portfolios_router)
+v1_router.include_router(sips_router)
 
 __all__ = ["v1_router"]

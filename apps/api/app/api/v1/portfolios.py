@@ -69,6 +69,7 @@ def _to_transaction_response(t: Transaction) -> TransactionResponse:
         nav=t.nav,
         amount=t.amount,
         notes=t.notes,
+        sip_installment_id=t.sip_installment_id,
         created_at=t.created_at,
         updated_at=t.updated_at,
     )
