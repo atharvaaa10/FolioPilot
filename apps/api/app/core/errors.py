@@ -193,6 +193,92 @@ class TransactionLimitReachedError(ConflictError):
         super().__init__(message=message, code="TRANSACTION_LIMIT_REACHED", details=details)
 
 
+# Phase 3B: SIP Exceptions
+class SipNotFoundError(NotFoundError):
+    """SIP not found (HTTP 404)."""
+
+    def __init__(self, message: str = "SIP not found", details: Any = None) -> None:
+        super().__init__(message=message, details=details)
+        self.code = "SIP_NOT_FOUND"
+
+
+class SipLimitReachedError(ConflictError):
+    """Maximum number of SIPs reached for portfolio (HTTP 409)."""
+
+    def __init__(
+        self,
+        message: str = "Maximum number of SIPs reached for this portfolio",
+        details: Any = None,
+    ) -> None:
+        super().__init__(message=message, code="SIP_LIMIT_REACHED", details=details)
+
+
+class SipInvalidScheduleError(ValidationError):
+    """Invalid SIP schedule or range containing no due dates (HTTP 422)."""
+
+    def __init__(
+        self,
+        message: str = "Invalid SIP schedule",
+        details: Any = None,
+    ) -> None:
+        super().__init__(message=message, details=details)
+        self.code = "SIP_INVALID_SCHEDULE"
+
+
+class SipAlreadyPausedError(ConflictError):
+    """SIP is already paused (HTTP 409)."""
+
+    def __init__(self, message: str = "SIP is already paused", details: Any = None) -> None:
+        super().__init__(message=message, code="SIP_ALREADY_PAUSED", details=details)
+
+
+class SipNotPausedError(ConflictError):
+    """SIP is not paused (HTTP 409)."""
+
+    def __init__(self, message: str = "SIP is not paused", details: Any = None) -> None:
+        super().__init__(message=message, code="SIP_NOT_PAUSED", details=details)
+
+
+class SipAlreadyEndedError(ConflictError):
+    """SIP is already ended (HTTP 409)."""
+
+    def __init__(self, message: str = "SIP is already ended", details: Any = None) -> None:
+        super().__init__(message=message, code="SIP_ALREADY_ENDED", details=details)
+
+
+class InstallmentNotFoundError(NotFoundError):
+    """Installment not found (HTTP 404)."""
+
+    def __init__(self, message: str = "Installment not found", details: Any = None) -> None:
+        super().__init__(message=message, details=details)
+        self.code = "INSTALLMENT_NOT_FOUND"
+
+
+class InstallmentNotSkippableError(ConflictError):
+    """Installment cannot be skipped (HTTP 409)."""
+
+    def __init__(self, message: str = "Installment cannot be skipped", details: Any = None) -> None:
+        super().__init__(message=message, code="INSTALLMENT_NOT_SKIPPABLE", details=details)
+
+
+class TransactionManagedBySipError(ConflictError):
+    """Transaction is managed by a SIP and cannot be modified directly (HTTP 409)."""
+
+    def __init__(
+        self,
+        message: str = "Transaction is managed by a SIP and cannot be modified or deleted directly",
+        details: Any = None,
+    ) -> None:
+        super().__init__(message=message, code="TRANSACTION_MANAGED_BY_SIP", details=details)
+
+
+class FundInactiveError(ConflictError):
+    """Fund is inactive and cannot accept new investments (HTTP 409)."""
+
+    def __init__(self, message: str = "Fund is inactive", details: Any = None) -> None:
+        super().__init__(message=message, code="FUND_INACTIVE", details=details)
+
+
 def register_error_handlers(app: FastAPI) -> None:
     """Register custom exception handlers on the FastAPI application."""
 
@@ -218,6 +304,8 @@ def register_error_handlers(app: FastAPI) -> None:
     async def handle_validation_error(
         _request: Request, exc: RequestValidationError
     ) -> JSONResponse:
+        from fastapi.encoders import jsonable_encoder
+
         return JSONResponse(
             status_code=422,
             content={
@@ -225,7 +313,7 @@ def register_error_handlers(app: FastAPI) -> None:
                 "error": {
                     "code": "VALIDATION_ERROR",
                     "message": "Request validation failed",
-                    "details": exc.errors(),
+                    "details": jsonable_encoder(exc.errors()),
                 },
             },
         )
