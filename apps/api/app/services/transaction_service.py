@@ -19,6 +19,7 @@ from app.core.errors import (
     FundNotFoundError,
     PortfolioNotFoundError,
     TransactionLimitReachedError,
+    TransactionManagedBySipError,
     TransactionNotFoundError,
     ValidationError,
 )
@@ -66,6 +67,7 @@ class TransactionService:
         nav: Decimal | None = None,
         amount: Decimal | None = None,
         notes: str | None = None,
+        sip_installment_id: UUID | None = None,
         clock: Callable[[], datetime] | None = None,
     ) -> Transaction:
         """Add transaction to portfolio ledger with concurrency lock and validation."""
@@ -137,6 +139,7 @@ class TransactionService:
             nav=res_nav,
             amount=res_amount,
             notes=notes,
+            sip_installment_id=sip_installment_id,
         )
 
         # 9. Ensure fund is flagged tracked and backfill enqueued
@@ -175,6 +178,7 @@ class TransactionService:
         nav: Decimal | None = None,
         amount: Decimal | None = None,
         notes: str | None = None,
+        sip_installment_id: UUID | None = None,
         clock: Callable[[], datetime] | None = None,
     ) -> Transaction:
         """Update existing transaction under pessimistic row lock with ledger re-validation."""
@@ -189,6 +193,12 @@ class TransactionService:
         )
         if txn is None:
             raise TransactionNotFoundError("Transaction not found")
+
+        if txn.sip_installment_id is not None:
+            raise TransactionManagedBySipError(
+                "Transaction is managed by a SIP and cannot be modified directly",
+                details={"sip_installment_id": str(txn.sip_installment_id)},
+            )
 
         # 3. Determine new values (type and fund are strictly immutable)
         now_utc = clock() if clock else datetime.now(UTC)
@@ -275,6 +285,12 @@ class TransactionService:
         )
         if txn is None:
             raise TransactionNotFoundError("Transaction not found")
+
+        if txn.sip_installment_id is not None:
+            raise TransactionManagedBySipError(
+                "Transaction is managed by a SIP and cannot be deleted directly",
+                details={"sip_installment_id": str(txn.sip_installment_id)},
+            )
 
         # 3. Verify ledger consistency if this transaction is removed
         all_txns = await TransactionRepository.list_by_portfolio(
