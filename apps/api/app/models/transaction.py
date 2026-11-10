@@ -44,6 +44,11 @@ class Transaction(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     nav: Mapped[Decimal] = mapped_column(Numeric(20, 8), nullable=False)
     amount: Mapped[Decimal] = mapped_column(Numeric(15, 2), nullable=False)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sip_installment_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("sip_installments.id", ondelete="SET NULL"),
+        nullable=True,
+        unique=True,
+    )
 
     # Relationships
     portfolio: Mapped["Portfolio"] = relationship("Portfolio", back_populates="transactions")
