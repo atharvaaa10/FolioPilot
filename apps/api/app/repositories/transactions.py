@@ -70,6 +70,19 @@ class TransactionRepository:
         return result.scalar_one() or 0
 
     @staticmethod
+    async def get_by_installment_id(
+        session: AsyncSession,
+        installment_id: UUID,
+        load_fund: bool = False,
+    ) -> Transaction | None:
+        """Fetch transaction linked to a specific SIP installment."""
+        stmt = select(Transaction).where(Transaction.sip_installment_id == installment_id)
+        if load_fund:
+            stmt = stmt.options(joinedload(Transaction.fund))
+        result = await session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    @staticmethod
     async def create(
         session: AsyncSession,
         portfolio_id: UUID,
@@ -80,6 +93,7 @@ class TransactionRepository:
         nav: Decimal,
         amount: Decimal,
         notes: str | None = None,
+        sip_installment_id: UUID | None = None,
     ) -> Transaction:
         """Append a transaction to the portfolio ledger."""
         txn = Transaction(
@@ -91,6 +105,7 @@ class TransactionRepository:
             nav=nav,
             amount=amount,
             notes=notes.strip() if notes else None,
+            sip_installment_id=sip_installment_id,
         )
         session.add(txn)
         await session.flush()
