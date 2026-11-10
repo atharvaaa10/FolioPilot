@@ -1,4 +1,4 @@
-.PHONY: up down logs migrate makemigration test test-api test-web lint format typecheck shell-api psql rebuild-web rebuild-python smoke sync-nav backfill-nav reclassify contract e2e
+.PHONY: up down logs migrate makemigration test test-api test-web lint format typecheck shell-api psql rebuild-web rebuild-python smoke sync-nav backfill-nav reclassify contract e2e run-sips
 
 # Default docker compose command
 DC = docker compose
@@ -67,4 +67,7 @@ contract:
 
 e2e:
 	powershell -Command "$$env:PLAYWRIGHT_BROWSERS_PATH='D:\caches\playwright'; npm --prefix apps/web run e2e"
+
+run-sips:
+	$(DC) exec api python -m app.cli run-sips
 

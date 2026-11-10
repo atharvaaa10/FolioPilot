@@ -21,12 +21,16 @@ from app.repositories.refresh_tokens import RefreshTokenRepository
 from app.repositories.sync_runs import SyncRunRepository
 from app.services.fund_sync import sync_amfi_funds_and_nav
 from app.services.nav_backfill import backfill_fund_nav_history
+from app.services.sip_executor import SipExecutor
 from app.workers.celery_app import celery_app
 
 logger = get_logger("workers.tasks")
 
 LOCK_KEY_AMFI_SYNC = "lock:sync_amfi_nav"
 LOCK_TIMEOUT_AMFI_SYNC = 900  # 15 minutes
+
+LOCK_KEY_SIP_EXECUTION = "lock:execute_due_sip_installments"
+LOCK_TIMEOUT_SIP_EXECUTION = 600  # 10 minutes
 
 
 @celery_app.task(name="ping")  # type: ignore[untyped-decorator]
@@ -209,6 +213,15 @@ async def _async_backfill_nav_history(
                 fund=fund,
                 mfapi_client=mfapi_client,
             )
+            if run.status == "success":
+                try:
+                    execute_pending_for_fund.delay(fund_id_str)
+                except Exception as exc:
+                    logger.warning(
+                        "Could not enqueue execute_pending_for_fund after backfill",
+                        fund_id=fund_id_str,
+                        error=str(exc),
+                    )
             return {
                 "status": run.status,
                 "nav_rows_written": run.nav_rows_written,
@@ -239,3 +252,95 @@ def backfill_nav_history(
             error=str(exc),
         )
         raise self.retry(exc=exc) from exc
+
+
+async def _async_execute_due_sip_installments(
+    db_url: str | None = None,
+    redis_url: str | None = None,
+) -> dict[str, Any]:
+    """Generate due installments and execute pending ones across all active SIPs."""
+    target_db = _get_target_db_url(db_url)
+    target_redis = _get_target_redis_url(redis_url)
+
+    engine = create_async_engine(target_db, poolclass=NullPool)
+    session_factory = async_sessionmaker(
+        bind=engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+
+    redis_pool = ConnectionPool.from_url(
+        target_redis,
+        encoding="utf-8",
+        decode_responses=True,
+    )
+    redis_client = Redis(connection_pool=redis_pool)
+
+    owner_token: str | None = None
+    try:
+        owner_token = await acquire_lock(
+            redis_client,
+            LOCK_KEY_SIP_EXECUTION,
+            timeout_seconds=LOCK_TIMEOUT_SIP_EXECUTION,
+        )
+
+        if owner_token is None:
+            logger.info("SIP installment execution skipped: lock held by another worker")
+            return {"status": "skipped", "reason": "lock_held"}
+
+        # 1. Generate due installments
+        async with session_factory() as session:
+            gen_count = await SipExecutor.generate_due_installments(session)
+
+        # 2. Execute pending installments
+        exec_stats = await SipExecutor.execute_pending(session_factory)
+        return {
+            "status": "success",
+            "installments_generated": gen_count,
+            **exec_stats,
+        }
+    finally:
+        if owner_token is not None:
+            await release_lock(redis_client, LOCK_KEY_SIP_EXECUTION, owner_token)
+        await redis_client.aclose()
+        await redis_pool.disconnect()
+        await engine.dispose()
+
+
+@celery_app.task(name="execute_due_sip_installments")  # type: ignore[untyped-decorator]
+def execute_due_sip_installments(
+    db_url: str | None = None,
+    redis_url: str | None = None,
+) -> dict[str, Any]:
+    """Execute all pending SIP installments and generate due ones."""
+    res = asyncio.run(_async_execute_due_sip_installments(db_url=db_url, redis_url=redis_url))
+    logger.info("executed_due_sip_installments", result=res)
+    return res
+
+
+async def _async_execute_pending_for_fund(
+    fund_id_str: str,
+    db_url: str | None = None,
+) -> dict[str, Any]:
+    """Execute pending installments specifically for one fund."""
+    target_db = _get_target_db_url(db_url)
+    engine = create_async_engine(target_db, poolclass=NullPool)
+    session_factory = async_sessionmaker(
+        bind=engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+    try:
+        fund_id = UUID(fund_id_str)
+        return await SipExecutor.execute_pending(session_factory, fund_id=fund_id)
+    finally:
+        await engine.dispose()
+
+
+@celery_app.task(name="execute_pending_for_fund")  # type: ignore[untyped-decorator]
+def execute_pending_for_fund(
+    fund_id_str: str,
+    db_url: str | None = None,
+) -> dict[str, Any]:
+    """Execute pending installments specifically for one fund."""
+    return asyncio.run(_async_execute_pending_for_fund(fund_id_str=fund_id_str, db_url=db_url))

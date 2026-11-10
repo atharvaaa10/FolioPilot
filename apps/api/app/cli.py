@@ -11,7 +11,7 @@ from app.models.fund import Fund
 from app.repositories.funds import FundRepository
 from app.services.fund_classification import classify_fund
 from app.services.nav_backfill import backfill_fund_nav_history
-from app.workers.tasks import sync_amfi_nav
+from app.workers.tasks import execute_due_sip_installments, sync_amfi_nav
 
 
 def run_sync_nav() -> None:
@@ -137,9 +137,21 @@ def run_reclassify() -> None:
     asyncio.run(_async_reclassify())
 
 
+def run_sips() -> None:
+    """Trigger manual execution of due SIP installments and print summary results."""
+    print("Initiating manual SIP installments execution...")
+    result = execute_due_sip_installments()
+    print("SIP installments execution completed with summary:")
+    for k, v in result.items():
+        print(f"  {k}: {v}")
+
+
 def main() -> None:
     if len(sys.argv) < 2:
-        print("Usage: python -m app.cli [sync-nav | backfill-nav <scheme_code> | reclassify]")
+        print(
+            "Usage: python -m app.cli "
+            "[sync-nav | backfill-nav <scheme_code> | reclassify | run-sips]"
+        )
         sys.exit(1)
 
     cmd = sys.argv[1].lower()
@@ -155,8 +167,13 @@ def main() -> None:
         run_backfill_nav(sys.argv[2])
     elif cmd == "reclassify":
         run_reclassify()
+    elif cmd == "run-sips":
+        run_sips()
     else:
-        print(f"Unknown command '{cmd}'. Available commands: sync-nav, backfill-nav, reclassify")
+        print(
+            f"Unknown command '{cmd}'. "
+            "Available commands: sync-nav, backfill-nav, reclassify, run-sips"
+        )
         sys.exit(1)
 
 

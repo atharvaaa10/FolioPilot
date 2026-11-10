@@ -15,6 +15,19 @@ SYNC_MORNING_MINUTE_UTC = 30
 PURGE_TOKENS_HOUR_UTC = 22
 PURGE_TOKENS_MINUTE_UTC = 0
 
+# SIP automatic installment execution schedule times:
+# Evening run (after AMFI NAV sync): 22:15 Asia/Kolkata (IST) -> 16:45 UTC
+SIP_EVENING_HOUR_IST = 22
+SIP_EVENING_MINUTE_IST = 15
+SIP_EVENING_HOUR_UTC = 16
+SIP_EVENING_MINUTE_UTC = 45
+
+# Morning run (after AMFI catch-up sync): 06:30 Asia/Kolkata (IST) -> 01:00 UTC
+SIP_MORNING_HOUR_IST = 6
+SIP_MORNING_MINUTE_IST = 30
+SIP_MORNING_HOUR_UTC = 1
+SIP_MORNING_MINUTE_UTC = 0
+
 CELERY_BEAT_SCHEDULE: dict[str, dict[str, object]] = {
     "purge-expired-refresh-tokens-daily": {
         "task": "purge_expired_refresh_tokens",
@@ -35,6 +48,20 @@ CELERY_BEAT_SCHEDULE: dict[str, dict[str, object]] = {
         "schedule": crontab(
             hour=SYNC_MORNING_HOUR_UTC,
             minute=SYNC_MORNING_MINUTE_UTC,
+        ),
+    },
+    "execute-due-sip-installments-evening": {
+        "task": "execute_due_sip_installments",
+        "schedule": crontab(
+            hour=SIP_EVENING_HOUR_UTC,
+            minute=SIP_EVENING_MINUTE_UTC,
+        ),
+    },
+    "execute-due-sip-installments-morning": {
+        "task": "execute_due_sip_installments",
+        "schedule": crontab(
+            hour=SIP_MORNING_HOUR_UTC,
+            minute=SIP_MORNING_MINUTE_UTC,
         ),
     },
 }

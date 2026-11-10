@@ -121,6 +121,18 @@ async def backfill_fund_nav_history(
         scheme_code=fund.scheme_code,
         nav_rows_written=nav_rows_written,
     )
+
+    try:
+        from app.workers.tasks import execute_pending_for_fund
+
+        execute_pending_for_fund.delay(str(fund.id))
+    except Exception as exc:
+        logger.warning(
+            "Could not enqueue execute_pending_for_fund after backfill",
+            fund_id=str(fund.id),
+            error=str(exc),
+        )
+
     return run
 
 
