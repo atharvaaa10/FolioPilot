@@ -66,7 +66,19 @@ make migrate
   - `PUT /api/v1/portfolios/{id}/targets`: Configure asset class target percentages (sum exactly 100.00%) (200)
   - `GET /api/v1/portfolios/{id}/transactions`: List chronological transactions in ledger (200)
   - `POST /api/v1/portfolios/{id}/transactions`: Record transaction with any-two-of-three derivation & oversell check (201)
-  - `DELETE /api/v1/portfolios/{id}/transactions/{txn_id}`: Delete transaction with oversell validation under row lock (204)
+  - `PATCH /api/v1/portfolios/{id}/transactions/{txn_id}`: Update transaction (managed SIP transactions return 409) (200)
+  - `DELETE /api/v1/portfolios/{id}/transactions/{txn_id}`: Delete transaction with oversell validation under row lock (managed SIP transactions return 409) (204)
+  - `GET /api/v1/portfolios/{id}/sips`: List SIPs for portfolio with aggregated statistics (200)
+  - `POST /api/v1/portfolios/{id}/sips`: Create recurring SIP with monthly schedule and optional annual step-up (201)
+  - `POST /api/v1/portfolios/{id}/sips/preview`: Preview next 12 installments with step-up (200)
+  - `GET /api/v1/portfolios/{id}/sips/{sip_id}`: Get SIP details (200)
+  - `PATCH /api/v1/portfolios/{id}/sips/{sip_id}`: Update SIP amount, step-up, notes, or end date (200)
+  - `POST /api/v1/portfolios/{id}/sips/{sip_id}/pause`: Pause an active SIP (200)
+  - `POST /api/v1/portfolios/{id}/sips/{sip_id}/resume`: Resume a paused SIP (200)
+  - `POST /api/v1/portfolios/{id}/sips/{sip_id}/end`: End a SIP immediately (200)
+  - `DELETE /api/v1/portfolios/{id}/sips/{sip_id}`: Delete a SIP (ledger transactions preserved) (204)
+  - `GET /api/v1/portfolios/{id}/sips/{sip_id}/installments`: List installments with status filter & pagination (200)
+  - `POST /api/v1/portfolios/{id}/sips/{sip_id}/installments/{inst_id}/skip`: Skip installment and safely remove linked ledger buy (200)
   - `GET /api/v1/health`: Lightweight liveness probe (200)
   - `GET /api/v1/health/ready`: PostgreSQL & Redis readiness probe (200/503)
   - `GET /docs`: Swagger OpenAPI documentation (development mode)
@@ -248,6 +260,37 @@ flowchart TD
 - **Periodic Schedules**:
   - `sync-amfi-nav-evening`: Runs daily at 21:30 IST (`16:00 UTC`), after AMC cutoffs.
   - `sync-amfi-nav-morning`: Runs daily at 06:00 IST (`00:30 UTC`), catching late-reporting funds.
+
+---
+
+## Systematic Investment Plans (SIPs) & Execution Engine (Phase 3B)
+
+```mermaid
+flowchart TD
+    SipRule["SIP Rule (Amount, Day 1..28, Step-Up %)"]
+    Beat["Celery Beat (22:15 & 06:30 IST)"]
+    Worker["Celery Worker Tasks"]
+    Executor["SipExecutor Engine"]
+    Ledger[("Portfolio Ledger (transactions)")]
+
+    Beat -- "execute_due_sip_installments" --> Worker
+    Worker -- "Acquire Distributed Lock" --> Executor
+    Executor -- "Generate Due Installments" --> Executor
+    Executor -- "Resolve NAV (Latest Preceding Trading Day)" --> Executor
+    Executor -- "Execute Under Portfolio Row Lock" --> Ledger
+    Ledger -- "Created BUY Transaction (sip_installment_id)" --> Ledger
+```
+
+### SIP Architecture Highlights
+- **Recurrence & Step-Up**: Monthly recurrence on `day_of_month` (1..28, eliminating leap-year/month-end edge cases) with compound annual step-up percentage.
+- **Pessimistic Locking & Idempotency**: Each installment executes in an isolated transaction acquiring portfolio and installment row locks (`FOR UPDATE`), preventing concurrent duplicate buys.
+- **Execution Triggers & CLI**:
+  - `make run-sips`: Executes an immediate pass of installment generation and execution.
+  - Periodic execution runs daily via Celery beat at 22:15 IST (`16:45 UTC`) and 06:30 IST (`01:00 UTC`).
+  - Automatic trigger hook enqueues fund execution whenever historical NAV backfill completes or when a new SIP is created.
+- **Managed Transaction Protection**: Ledger transactions spawned by SIPs are protected against direct edits or deletions (`HTTP 409 TRANSACTION_MANAGED_BY_SIP`).
+- **Skip Semantics**: Installments can be skipped safely. Skipping an executed installment deletes its linked ledger buy under the portfolio row lock, enforcing that subsequent sells do not become inconsistent (`LEDGER_INCONSISTENT`).
+
 
 ---
 

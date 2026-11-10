@@ -156,7 +156,33 @@ All API responses must strictly follow the standard envelope:
   - Browser binaries must strictly reside on `D:\caches\playwright` (`PLAYWRIGHT_BROWSERS_PATH=D:\caches\playwright`).
   - Every UI and ledger mutation change must pass the E2E verification before commit.
 
-
-
-
+## 14. Systematic Investment Plans (SIPs) & Managed Transactions Architecture
+- **Rule, Installment, and Transaction Separation**:
+  - SIPs define recurring investment rules, generate `sip_installments`, and execute ordinary `buy` transactions in the Phase 3A ledger. Full architectural spec in [docs/sips.md](docs/sips.md).
+- **Managed Transaction Invariant**:
+  - Ledger transactions created by SIP installments have `sip_installment_id` set (FK with `ON DELETE SET NULL`, unique index).
+  - Managed transactions cannot be edited or deleted directly via transaction endpoints; direct attempts return `HTTP 409 Conflict` (`TRANSACTION_MANAGED_BY_SIP`).
+  - Removal is executed exclusively through `POST /sips/{sip_id}/installments/{inst_id}/skip`.
+- **Skip Semantics & Ledger Protection**:
+  - Skipping an executed installment deletes its linked ledger transaction under the portfolio row lock. If subsequent redemptions rely on those units, skip is aborted with `HTTP 409 Conflict` (`LEDGER_INCONSISTENT`).
+- **Schedule, Step-Up & Pause Mathematics**:
+  - Frequency is monthly on `day_of_month` (1..28, eliminating month-end and leap-year edge cases).
+  - Annual step-up increases amount by $s\%$ ($A_k = \text{round}(A_0 \cdot (1 + s/100)^k, 2)$ where $k = \lfloor (m-1)/12 \rfloor$).
+  - Pausing skips installment generation during the pause window without shifting anniversary months ($k$ counts from initial schedule origin).
+- **Execution & NAV Selection**:
+  - Scheduled Celery beat runs at 22:15 IST (16:45 UTC) and 06:30 IST (01:00 UTC).
+  - Installments execute lazily up to current date.
+  - NAV selection picks `due_date` NAV or most recent prior trading day NAV; forward-looking NAV is never used.
+  - Installment execution takes portfolio and installment row locks in isolated transactions, preventing concurrent double-execution.
+- **SIP Error Codes**:
+  - `SIP_NOT_FOUND` (HTTP 404): SIP does not exist or belongs to another user.
+  - `INSTALLMENT_NOT_FOUND` (HTTP 404): Installment does not exist or does not belong to the SIP.
+  - `FUND_INACTIVE` (HTTP 409): Target mutual fund is inactive.
+  - `SIP_LIMIT_REACHED` (HTTP 409): Portfolio has reached limit of 50 active/scheduled SIPs.
+  - `SIP_ALREADY_PAUSED` (HTTP 409): Attempting to pause a SIP with an existing open pause.
+  - `SIP_NOT_PAUSED` (HTTP 409): Attempting to resume a SIP that is not paused.
+  - `SIP_ALREADY_ENDED` (HTTP 409): Attempting to mutate an ended SIP.
+  - `SIP_INVALID_SCHEDULE` (HTTP 422): Schedule produces no valid execution dates.
+  - `INSTALLMENT_NOT_SKIPPABLE` (HTTP 409): Installment has already been skipped.
+  - `TRANSACTION_MANAGED_BY_SIP` (HTTP 409): Direct mutation attempted on managed transaction.
 
