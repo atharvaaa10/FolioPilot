@@ -19,7 +19,9 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     # 1. Drop existing constraint allowing only uppercase
-    op.execute("ALTER TABLE transactions DROP CONSTRAINT IF EXISTS ck_transactions_chk_transaction_type")
+    op.execute(
+        "ALTER TABLE transactions DROP CONSTRAINT IF EXISTS ck_transactions_chk_transaction_type"
+    )
 
     # 2. Update existing transactions to lowercase
     op.execute("UPDATE transactions SET txn_type = lower(txn_type)")
@@ -33,7 +35,9 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     # 1. Drop the lowercase constraint
-    op.execute("ALTER TABLE transactions DROP CONSTRAINT IF EXISTS ck_transactions_chk_transaction_type")
+    op.execute(
+        "ALTER TABLE transactions DROP CONSTRAINT IF EXISTS ck_transactions_chk_transaction_type"
+    )
 
     # 2. Convert existing rows back to uppercase
     op.execute(
