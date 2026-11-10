@@ -8,33 +8,9 @@ from typing import Any
 # Ensure apps/api is in sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.schemas.fund import (
-    FundDetailResponse,
-    FundNavHistoryResponse,
-    FundSearchItem,
-    FundSearchResponse,
-    NavPoint,
-    NavStatusResponse,
-    TrackFundResponse,
-)
-from app.schemas.portfolio import TargetItem
-from app.schemas.transaction import (
-    FundSummary,
-    HoldingResponse,
-    HoldingsListResponse,
-    HoldingsTotals,
-    PortfolioDetailResponse,
-    TransactionListResponse,
-    TransactionResponse,
-)
 
 FIXTURE_DIR = (
-    Path(__file__).resolve().parent.parent.parent
-    / "web"
-    / "src"
-    / "test"
-    / "fixtures"
-    / "contract"
+    Path(__file__).resolve().parent.parent.parent / "web" / "src" / "test" / "fixtures" / "contract"
 )
 
 
@@ -237,6 +213,150 @@ def generate_fixtures() -> dict[str, Any]:
         "status": "already_tracked",
     }
 
+    # 7. SIPs responses
+    sip_id = "44444444-4444-4444-4444-444444444444"
+    installment_id_1 = "55555555-5555-5555-5555-555555555551"
+    installment_id_2 = "55555555-5555-5555-5555-555555555552"
+
+    sip_detail_data = {
+        "id": sip_id,
+        "portfolio_id": portfolio_id,
+        "fund": {
+            "scheme_code": 122639,
+            "name": "Parag Parikh Flexi Cap Fund",
+            "amc": "PPFAS Mutual Fund",
+            "plan_type": "direct",
+            "option_type": "growth",
+            "asset_class": "equity",
+            "sub_category": "flexi-cap",
+        },
+        "amount": "5000.00",
+        "day_of_month": 10,
+        "start_date": "2026-05-10",
+        "end_date": "2026-10-10",
+        "step_up_percent": "0.00",
+        "notes": "Monthly Flexi Cap SIP",
+        "status": "active",
+        "next_due_date": "2026-06-10",
+        "next_installment_amount": "5000.00",
+        "pauses": [],
+        "stats": {
+            "installments_total": 6,
+            "executed": 1,
+            "pending": 5,
+            "skipped": 0,
+            "total_invested": "5000.00",
+            "units_acquired": "90.2527",
+        },
+        "created_at": "2026-05-01T00:00:00Z",
+    }
+
+    sips_list_data = {
+        "items": [sip_detail_data],
+        "total": 1,
+    }
+
+    sip_installments_data = {
+        "items": [
+            {
+                "id": installment_id_1,
+                "sip_id": sip_id,
+                "due_date": "2026-05-10",
+                "planned_amount": "5000.00",
+                "status": "executed",
+                "nav_date": "2026-05-11",
+                "transaction": {
+                    "id": "22222222-2222-2222-2222-222222222221",
+                    "txn_date": "2026-05-11",
+                    "units": "90.2527",
+                    "nav": "55.40000000",
+                    "amount": "5000.00",
+                },
+            },
+            {
+                "id": installment_id_2,
+                "sip_id": sip_id,
+                "due_date": "2026-06-10",
+                "planned_amount": "5000.00",
+                "status": "pending",
+                "nav_date": None,
+                "transaction": None,
+            },
+        ],
+        "total": 2,
+        "has_more": False,
+        "limit": 50,
+        "offset": 0,
+    }
+
+    sip_preview_data = {
+        "items": [
+            {"due_date": "2026-05-10", "planned_amount": "5000.00"},
+            {"due_date": "2026-06-10", "planned_amount": "5000.00"},
+            {"due_date": "2026-07-10", "planned_amount": "5000.00"},
+            {"due_date": "2026-08-10", "planned_amount": "5000.00"},
+            {"due_date": "2026-09-10", "planned_amount": "5000.00"},
+            {"due_date": "2026-10-10", "planned_amount": "5000.00"},
+        ],
+        "count": 6,
+    }
+
+    error_sip_invalid_schedule = {
+        "code": "SIP_INVALID_SCHEDULE",
+        "message": "SIP schedule contains no valid due dates in the specified range",
+        "details": {
+            "start_date": "2026-05-10",
+            "day_of_month": 10,
+            "end_date": "2026-05-01",
+        },
+    }
+
+    error_sip_already_paused = {
+        "code": "SIP_ALREADY_PAUSED",
+        "message": "SIP is already paused",
+        "details": {
+            "open_pause_id": "66666666-6666-6666-6666-666666666666",
+        },
+    }
+
+    error_sip_not_paused = {
+        "code": "SIP_NOT_PAUSED",
+        "message": "SIP is not currently paused",
+        "details": {},
+    }
+
+    error_sip_already_ended = {
+        "code": "SIP_ALREADY_ENDED",
+        "message": "SIP has already ended",
+        "details": {
+            "end_date": "2026-10-10",
+        },
+    }
+
+    error_transaction_managed_by_sip = {
+        "code": "TRANSACTION_MANAGED_BY_SIP",
+        "message": "Transaction is managed by a SIP and cannot be edited or deleted directly",
+        "details": {
+            "sip_installment_id": installment_id_1,
+        },
+    }
+
+    error_installment_not_skippable = {
+        "code": "INSTALLMENT_NOT_SKIPPABLE",
+        "message": "Installment has already been skipped",
+        "details": {
+            "status": "skipped",
+        },
+    }
+
+    error_fund_inactive = {
+        "code": "FUND_INACTIVE",
+        "message": "Fund is inactive and cannot accept new investments",
+        "details": {
+            "fund_id": fund_id,
+        },
+    }
+
     fixtures = {
         "targets.json": targets_data,
         "portfolio-detail.json": portfolio_detail_data,
@@ -249,6 +369,17 @@ def generate_fixtures() -> dict[str, Any]:
         "nav-history.json": nav_history_data,
         "nav-status.json": nav_status_data,
         "track-fund.json": track_fund_data,
+        "sip-detail.json": sip_detail_data,
+        "sips-list.json": sips_list_data,
+        "sip-installments.json": sip_installments_data,
+        "sip-preview.json": sip_preview_data,
+        "error-sip-invalid-schedule.json": error_sip_invalid_schedule,
+        "error-sip-already-paused.json": error_sip_already_paused,
+        "error-sip-not-paused.json": error_sip_not_paused,
+        "error-sip-already-ended.json": error_sip_already_ended,
+        "error-transaction-managed-by-sip.json": error_transaction_managed_by_sip,
+        "error-installment-not-skippable.json": error_installment_not_skippable,
+        "error-fund-inactive.json": error_fund_inactive,
     }
 
     for filename, content in fixtures.items():

@@ -1,0 +1,9 @@
+{
+  "code": "SIP_INVALID_SCHEDULE",
+  "message": "SIP schedule contains no valid due dates in the specified range",
+  "details": {
+    "start_date": "2026-05-10",
+    "day_of_month": 10,
+    "end_date": "2026-05-01"
+  }
+}

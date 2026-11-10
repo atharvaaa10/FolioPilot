@@ -1,0 +1,32 @@
+{
+  "id": "44444444-4444-4444-4444-444444444444",
+  "portfolio_id": "11111111-1111-1111-1111-111111111111",
+  "fund": {
+    "scheme_code": 122639,
+    "name": "Parag Parikh Flexi Cap Fund",
+    "amc": "PPFAS Mutual Fund",
+    "plan_type": "direct",
+    "option_type": "growth",
+    "asset_class": "equity",
+    "sub_category": "flexi-cap"
+  },
+  "amount": "5000.00",
+  "day_of_month": 10,
+  "start_date": "2026-05-10",
+  "end_date": "2026-10-10",
+  "step_up_percent": "0.00",
+  "notes": "Monthly Flexi Cap SIP",
+  "status": "active",
+  "next_due_date": "2026-06-10",
+  "next_installment_amount": "5000.00",
+  "pauses": [],
+  "stats": {
+    "installments_total": 6,
+    "executed": 1,
+    "pending": 5,
+    "skipped": 0,
+    "total_invested": "5000.00",
+    "units_acquired": "90.2527"
+  },
+  "created_at": "2026-05-01T00:00:00Z"
+}

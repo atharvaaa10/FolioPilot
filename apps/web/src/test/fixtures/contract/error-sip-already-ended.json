@@ -1,0 +1,7 @@
+{
+  "code": "SIP_ALREADY_ENDED",
+  "message": "SIP has already ended",
+  "details": {
+    "end_date": "2026-10-10"
+  }
+}

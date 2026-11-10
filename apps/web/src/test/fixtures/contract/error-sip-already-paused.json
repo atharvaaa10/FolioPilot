@@ -1,0 +1,7 @@
+{
+  "code": "SIP_ALREADY_PAUSED",
+  "message": "SIP is already paused",
+  "details": {
+    "open_pause_id": "66666666-6666-6666-6666-666666666666"
+  }
+}

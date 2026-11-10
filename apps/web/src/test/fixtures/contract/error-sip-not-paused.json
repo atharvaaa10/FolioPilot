@@ -1,0 +1,5 @@
+{
+  "code": "SIP_NOT_PAUSED",
+  "message": "SIP is not currently paused",
+  "details": {}
+}

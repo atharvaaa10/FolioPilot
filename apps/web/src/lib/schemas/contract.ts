@@ -127,6 +127,7 @@ export const TransactionItemSchema = z.object({
   nav: z.string(),
   amount: z.string(),
   notes: z.string().nullable().optional(),
+  sip_installment_id: z.string().uuid().nullable().optional(),
   created_at: z.string(),
   updated_at: z.string().nullable().optional(),
 });
@@ -237,5 +238,153 @@ export const LedgerInconsistentErrorSchema = z.object({
     fund_id: z.string().optional(),
     date: z.string(),
   }),
+});
+
+// -------------------------------------------------------------
+// SIPs (Systematic Investment Plans)
+// -------------------------------------------------------------
+export const SipStatusEnum = z.enum(["scheduled", "active", "paused", "ended"]);
+export type SipStatus = z.infer<typeof SipStatusEnum>;
+
+export const SipFundSchema = z.object({
+  scheme_code: z.number(),
+  name: z.string(),
+  amc: z.string(),
+  plan_type: z.string(),
+  option_type: z.string(),
+  asset_class: z.string(),
+  sub_category: z.string().nullable().optional(),
+});
+export type SipFund = z.infer<typeof SipFundSchema>;
+
+export const SipPauseSchema = z.object({
+  id: z.string().uuid(),
+  paused_from: z.string(),
+  resumed_on: z.string().nullable(),
+});
+export type SipPause = z.infer<typeof SipPauseSchema>;
+
+export const SipStatsSchema = z.object({
+  installments_total: z.number(),
+  executed: z.number(),
+  pending: z.number(),
+  skipped: z.number(),
+  total_invested: z.string(),
+  units_acquired: z.string(),
+});
+export type SipStats = z.infer<typeof SipStatsSchema>;
+
+export const SipDetailSchema = z.object({
+  id: z.string().uuid(),
+  portfolio_id: z.string().uuid(),
+  fund: SipFundSchema,
+  amount: z.string(),
+  day_of_month: z.number(),
+  start_date: z.string(),
+  end_date: z.string().nullable(),
+  step_up_percent: z.string(),
+  notes: z.string().nullable().optional(),
+  status: SipStatusEnum,
+  next_due_date: z.string().nullable().optional(),
+  next_installment_amount: z.string().nullable().optional(),
+  pauses: z.array(SipPauseSchema),
+  stats: SipStatsSchema,
+  created_at: z.string(),
+});
+export type SipDetail = z.infer<typeof SipDetailSchema>;
+
+export const SipListResponseSchema = z.object({
+  items: z.array(SipDetailSchema),
+  total: z.number(),
+});
+export type SipListResponse = z.infer<typeof SipListResponseSchema>;
+
+export const SipInstallmentTransactionSchema = z.object({
+  id: z.string().uuid(),
+  txn_date: z.string(),
+  units: z.string(),
+  nav: z.string(),
+  amount: z.string(),
+});
+export type SipInstallmentTransaction = z.infer<typeof SipInstallmentTransactionSchema>;
+
+export const SipInstallmentStatusEnum = z.enum(["pending", "executed", "skipped"]);
+export type SipInstallmentStatus = z.infer<typeof SipInstallmentStatusEnum>;
+
+export const SipInstallmentSchema = z.object({
+  id: z.string().uuid(),
+  sip_id: z.string().uuid(),
+  due_date: z.string(),
+  planned_amount: z.string(),
+  status: SipInstallmentStatusEnum,
+  nav_date: z.string().nullable().optional(),
+  transaction: SipInstallmentTransactionSchema.nullable().optional(),
+});
+export type SipInstallment = z.infer<typeof SipInstallmentSchema>;
+
+export const SipInstallmentsListResponseSchema = z.object({
+  items: z.array(SipInstallmentSchema),
+  total: z.number(),
+  has_more: z.boolean(),
+  limit: z.number(),
+  offset: z.number(),
+});
+export type SipInstallmentsListResponse = z.infer<typeof SipInstallmentsListResponseSchema>;
+
+export const SipPreviewItemSchema = z.object({
+  due_date: z.string(),
+  planned_amount: z.string(),
+});
+export type SipPreviewItem = z.infer<typeof SipPreviewItemSchema>;
+
+export const SipPreviewResponseSchema = z.object({
+  items: z.array(SipPreviewItemSchema),
+  count: z.number(),
+});
+export type SipPreviewResponse = z.infer<typeof SipPreviewResponseSchema>;
+
+// -------------------------------------------------------------
+// SIP Specific Error Details Schemas
+// -------------------------------------------------------------
+export const SipInvalidScheduleErrorSchema = z.object({
+  code: z.literal("SIP_INVALID_SCHEDULE"),
+  message: z.string(),
+  details: z.record(z.unknown()).optional(),
+});
+
+export const SipAlreadyPausedErrorSchema = z.object({
+  code: z.literal("SIP_ALREADY_PAUSED"),
+  message: z.string(),
+  details: z.record(z.unknown()).optional(),
+});
+
+export const SipNotPausedErrorSchema = z.object({
+  code: z.literal("SIP_NOT_PAUSED"),
+  message: z.string(),
+  details: z.record(z.unknown()).optional(),
+});
+
+export const SipAlreadyEndedErrorSchema = z.object({
+  code: z.literal("SIP_ALREADY_ENDED"),
+  message: z.string(),
+  details: z.record(z.unknown()).optional(),
+});
+
+export const TransactionManagedBySipErrorSchema = z.object({
+  code: z.literal("TRANSACTION_MANAGED_BY_SIP"),
+  message: z.string(),
+  details: z.record(z.unknown()).optional(),
+});
+
+export const InstallmentNotSkippableErrorSchema = z.object({
+  code: z.literal("INSTALLMENT_NOT_SKIPPABLE"),
+  message: z.string(),
+  details: z.record(z.unknown()).optional(),
+});
+
+export const FundInactiveErrorSchema = z.object({
+  code: z.literal("FUND_INACTIVE"),
+  message: z.string(),
+  details: z.record(z.unknown()).optional(),
 });
 

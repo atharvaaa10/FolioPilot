@@ -1,0 +1,7 @@
+{
+  "code": "INSTALLMENT_NOT_SKIPPABLE",
+  "message": "Installment has already been skipped",
+  "details": {
+    "status": "skipped"
+  }
+}
