@@ -112,8 +112,9 @@ async def test_session(test_infra: None) -> AsyncGenerator[AsyncSession, None]:
     async with _test_engine.begin() as conn:
         await conn.execute(
             text(
-                "TRUNCATE TABLE transactions, portfolio_targets, portfolios, "
-                "nav_sync_runs, nav_history, funds, refresh_tokens, users CASCADE;"
+                "TRUNCATE TABLE transactions, sip_installments, sip_pauses, sips, "
+                "portfolio_targets, portfolios, nav_sync_runs, nav_history, funds, "
+                "refresh_tokens, users CASCADE;"
             )
         )
 
@@ -124,10 +125,17 @@ async def test_session(test_infra: None) -> AsyncGenerator[AsyncSession, None]:
     async with _test_engine.begin() as conn:
         await conn.execute(
             text(
-                "TRUNCATE TABLE transactions, portfolio_targets, portfolios, "
-                "nav_sync_runs, nav_history, funds, refresh_tokens, users CASCADE;"
+                "TRUNCATE TABLE transactions, sip_installments, sip_pauses, sips, "
+                "portfolio_targets, portfolios, nav_sync_runs, nav_history, funds, "
+                "refresh_tokens, users CASCADE;"
             )
         )
+
+
+def get_test_session_factory() -> async_sessionmaker[AsyncSession]:
+    """Return the test session factory bound to test database."""
+    assert _test_session_factory is not None
+    return _test_session_factory
 
 
 @pytest_asyncio.fixture

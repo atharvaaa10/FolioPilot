@@ -18,10 +18,7 @@ def export_classification() -> None:
 
     # Sort deterministically
     sorted_classifications = sorted(
-        [
-            {"asset_class": ac, "sub_category": sc}
-            for ac, sc in CANONICAL_CLASSIFICATIONS
-        ],
+        [{"asset_class": ac, "sub_category": sc} for ac, sc in CANONICAL_CLASSIFICATIONS],
         key=lambda x: (x["asset_class"], x["sub_category"] or ""),
     )
 
