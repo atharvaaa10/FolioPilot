@@ -27,6 +27,11 @@ import {
   type TransactionListResponse,
   type UpdateTransactionPayload,
 } from "@/lib/portfolios-api";
+import { sipsApi } from "@/lib/sips-api";
+import type { SipDetail, SipListResponse } from "@/lib/schemas/contract";
+import { CreateSipDialog } from "@/components/sips/create-sip-dialog";
+import { SipCard } from "@/components/sips/sip-card";
+import { InstallmentsDialog } from "@/components/sips/installments-dialog";
 import { fundsApi } from "@/lib/funds-api";
 import {
   formatDate,
@@ -119,6 +124,21 @@ export default function PortfolioDetailPage({ params }: PageProps) {
   });
 
   const transactions = transactionsData?.items || [];
+
+  // SIPs Query
+  const {
+    data: sipsData,
+    isLoading: isSipsLoading,
+    error: sipsError,
+    refetch: refetchSips,
+  } = useQuery<SipListResponse>({
+    queryKey: ["sips", id],
+    queryFn: () => sipsApi.list(id),
+  });
+
+  const sips = sipsData?.items || [];
+  const [isCreateSipOpen, setIsCreateSipOpen] = useState(false);
+  const [selectedSipForInstallments, setSelectedSipForInstallments] = useState<SipDetail | null>(null);
 
   // Target Allocations State
   const [targetRows, setTargetRows] = useState<TargetAllocation[]>([]);
@@ -240,8 +260,17 @@ export default function PortfolioDetailPage({ params }: PageProps) {
       setIsEditTxnOpen(false);
       setEditingTxn(null);
     },
-    onError: (err: { message?: string }) => {
-      setEditError(err.message || "Failed to update transaction.");
+    onError: (err: any) => {
+      const code = err?.response?.data?.error?.code;
+      if (code === "TRANSACTION_MANAGED_BY_SIP") {
+        setEditError(
+          "This transaction was created by a SIP and cannot be modified directly. Skip the installment in the SIP schedule instead."
+        );
+      } else {
+        setEditError(
+          err?.response?.data?.error?.message || err?.message || "Failed to update transaction."
+        );
+      }
     },
   });
 
@@ -252,8 +281,17 @@ export default function PortfolioDetailPage({ params }: PageProps) {
       queryClient.invalidateQueries({ queryKey: ["holdings", id] });
       queryClient.invalidateQueries({ queryKey: ["transactions", id] });
     },
-    onError: (err: { message?: string }) => {
-      alert(err.message || "Failed to delete transaction.");
+    onError: (err: any) => {
+      const code = err?.response?.data?.error?.code;
+      if (code === "TRANSACTION_MANAGED_BY_SIP") {
+        alert(
+          "This transaction was created by a SIP and cannot be deleted directly. Skip the installment in the SIP schedule instead."
+        );
+      } else {
+        alert(
+          err?.response?.data?.error?.message || err?.message || "Failed to delete transaction."
+        );
+      }
     },
   });
 
@@ -768,6 +806,68 @@ export default function PortfolioDetailPage({ params }: PageProps) {
         </CardContent>
       </Card>
 
+      {/* Systematic Investment Plans (SIPs) Section */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-lg font-semibold">
+                Recurring Investments (SIPs)
+              </CardTitle>
+              <CardDescription>
+                Systematic investment plans that automatically execute monthly installments into the ledger.
+              </CardDescription>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => setIsCreateSipOpen(true)}
+              className="inline-flex items-center gap-1.5"
+            >
+              <Plus className="h-4 w-4" /> New SIP
+            </Button>
+          </div>
+        </CardHeader>
+
+        <CardContent>
+          {isSipsLoading ? (
+            <div className="flex h-28 items-center justify-center">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : sipsError ? (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error Loading SIPs</AlertTitle>
+              <AlertDescription className="space-y-2">
+                <p>{sipsError.message}</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => refetchSips()}
+                  className="inline-flex items-center gap-1.5"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" /> Retry
+                </Button>
+              </AlertDescription>
+            </Alert>
+          ) : sips.length === 0 ? (
+            <div className="py-8 text-center text-sm text-muted-foreground border rounded-lg border-dashed">
+              No systematic investment plans created yet. Click &quot;New SIP&quot; to set up recurring investments.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {sips.map((sip) => (
+                <SipCard
+                  key={sip.id}
+                  portfolioId={id}
+                  sip={sip}
+                  onViewInstallments={setSelectedSipForInstallments}
+                />
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Transaction Ledger Table */}
       <Card>
         <CardHeader>
@@ -829,16 +929,27 @@ export default function PortfolioDetailPage({ params }: PageProps) {
                       {formatDate(txn.txn_date)}
                     </TableCell>
                     <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={
-                          txn.txn_type === "buy" || txn.txn_type === "dividend_reinvest"
-                            ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 uppercase text-xs"
-                            : "bg-rose-500/10 text-rose-600 border-rose-500/20 uppercase text-xs"
-                        }
-                      >
-                        {txn.txn_type}
-                      </Badge>
+                      <div className="flex items-center">
+                        <Badge
+                          variant="outline"
+                          className={
+                            txn.txn_type === "buy" || txn.txn_type === "dividend_reinvest"
+                              ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 uppercase text-xs"
+                              : "bg-rose-500/10 text-rose-600 border-rose-500/20 uppercase text-xs"
+                          }
+                        >
+                          {txn.txn_type}
+                        </Badge>
+                        {txn.sip_installment_id && (
+                          <Badge
+                            variant="secondary"
+                            className="bg-blue-500/10 text-blue-600 border-blue-500/20 text-[10px] ml-1.5 uppercase font-medium"
+                            title="Created automatically by a SIP"
+                          >
+                            SIP
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="font-medium">
@@ -868,7 +979,12 @@ export default function PortfolioDetailPage({ params }: PageProps) {
                           variant="ghost"
                           size="sm"
                           className="h-8 w-8 p-0"
-                          title="Edit transaction"
+                          title={
+                            txn.sip_installment_id
+                              ? "Managed by SIP. Skip the installment in the SIP schedule to remove."
+                              : "Edit transaction"
+                          }
+                          disabled={!!txn.sip_installment_id}
                           onClick={() => openEditModal(txn)}
                         >
                           <Edit2 className="h-4 w-4" />
@@ -878,8 +994,12 @@ export default function PortfolioDetailPage({ params }: PageProps) {
                           variant="ghost"
                           size="sm"
                           className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                          title="Delete transaction"
-                          disabled={deleteTxnMutation.isPending}
+                          title={
+                            txn.sip_installment_id
+                              ? "Managed by SIP. Skip the installment in the SIP schedule to remove."
+                              : "Delete transaction"
+                          }
+                          disabled={deleteTxnMutation.isPending || !!txn.sip_installment_id}
                           onClick={() => {
                             if (
                               confirm(
@@ -1265,6 +1385,19 @@ export default function PortfolioDetailPage({ params }: PageProps) {
           </form>
         </DialogContent>
       </Dialog>
+
+      <CreateSipDialog
+        portfolioId={id}
+        open={isCreateSipOpen}
+        onOpenChange={setIsCreateSipOpen}
+      />
+
+      <InstallmentsDialog
+        portfolioId={id}
+        sip={selectedSipForInstallments}
+        open={!!selectedSipForInstallments}
+        onOpenChange={(open) => !open && setSelectedSipForInstallments(null)}
+      />
     </div>
   );
 }
