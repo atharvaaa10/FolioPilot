@@ -67,6 +67,7 @@ Tables so far (migrations in `apps/api/alembic/versions`):
 - 0004 portfolios, portfolio_targets, transactions
 - 0005 transaction type constraint (lowercase)
 - 0006 sips, sip_pauses, sip_installments (Phase 3B)
+- 0007 transaction_imports, transaction_import_rows (+ transaction.import_id) (Phase 4)
 
 Key flows:
 - Daily AMFI `NAVAll.txt` sync (21:30 and 06:00 IST) updates the fund master and every fund's latest NAV. NAV history is stored only for tracked funds, backfilled from mfapi.in.
@@ -94,8 +95,8 @@ Key flows:
 | 1 | Auth: rotation, reuse detection, grace window, rate limits | Done; browser-checked by owner |
 | 2 | AMFI fund master, NAV sync, fund search | Done; classification query check still to be reviewed |
 | 3A | Portfolios, targets, transaction ledger, derived positions | Built; owner to run verify scripts, then push |
-| 3B | SIPs: schedule, pauses, step-up, automatic installments | In progress |
-| 4 | Excel import of transactions | Planned |
+| 3B | SIPs: schedule, pauses, step-up, automatic installments | Done |
+| 4 | Excel import of transactions | Built; owner to run verify-phase4 |
 | 5 | Valuation, XIRR, dashboard | Planned |
 | 6 | Rebalancing, risk score, goals, history | Planned |
 | 7 | AI: tool-calling assistant | Planned |

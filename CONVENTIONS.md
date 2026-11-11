@@ -186,3 +186,32 @@ All API responses must strictly follow the standard envelope:
   - `INSTALLMENT_NOT_SKIPPABLE` (HTTP 409): Installment has already been skipped.
   - `TRANSACTION_MANAGED_BY_SIP` (HTTP 409): Direct mutation attempted on managed transaction.
 
+## 15. Excel Transaction Import Architecture
+- **Preview, All-or-Nothing Commit, and Undo**:
+  - Full architectural spec in [docs/imports.md](docs/imports.md).
+  - Upload creates a staged import preview (`transaction_imports` and `transaction_import_rows`) with a 24-hour TTL.
+  - Exactly one active preview is permitted per portfolio via partial unique index `(portfolio_id) WHERE status = 'previewed'`.
+  - Staged rows are committed atomically under a portfolio row lock (`SELECT FOR UPDATE FROM portfolios WHERE id = ...`).
+  - Staged imports can be discarded cleanly, or undone after commit (reversing applied transactions under the portfolio lock).
+- **Multiset Duplicate Detection Rule**:
+  - Duplicate detection matches on `(fund_id, txn_date, txn_type, units, nav, amount)`.
+  - For $n$ ledger matches and $m$ batch occurrences, exactly $\min(n, m)$ rows are marked `duplicate` (`DUPLICATE_IN_LEDGER`), and the remaining $\max(0, m - n)$ are imported.
+- **ASGI Upload Stream Enforcement**:
+  - `ImportUploadSizeLimitMiddleware` counts raw incoming body bytes at the ASGI layer and aborts with `HTTP 413` (`IMPORT_FILE_TOO_LARGE`) if size exceeds `IMPORT_MAX_FILE_BYTES` (2 MB) before Starlette multipart parsing or disk spooling occurs.
+- **Security & File Packaging Guards**:
+  - Reject non-zip archives, OLE headers (`\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1`), macro content (`vbaProject.bin`, `macroEnabled`), uncompressed size > 20 MB, zip entries > 100, data rows > 5,000.
+  - XML parsing is protected against expansion attacks using `defusedxml`.
+- **Import Error Codes**:
+  - `IMPORT_NOT_FOUND` (HTTP 404): Import batch does not exist or belongs to another user.
+  - `IMPORT_FILE_INVALID` (HTTP 422): File is corrupted, not a valid .xlsx zip, contains macros or OLE header.
+  - `IMPORT_FILE_TOO_LARGE` (HTTP 413): File exceeds 2 MB upload limit.
+  - `IMPORT_TEMPLATE_MISMATCH` (HTTP 422): Missing required headers (`txn_date`, `txn_type`) or unrecognized structure.
+  - `IMPORT_EMPTY` (HTTP 422): File contains headers but no transaction data rows.
+  - `IMPORT_TOO_MANY_ROWS` (HTTP 422): File contains more than 5,000 data rows.
+  - `IMPORT_ALREADY_COMMITTED` (HTTP 409): Import batch was already committed.
+  - `IMPORT_NOT_COMMITTED` (HTTP 409): Import batch cannot be undone because it was not committed.
+  - `IMPORT_HAS_ERRORS` (HTTP 409): Import contains row-level errors and `skip_invalid` was false.
+  - `IMPORT_STALE` (HTTP 409): Ledger state changed since preview was generated (`plan_fingerprint` mismatch).
+  - `IMPORT_NOTHING_TO_IMPORT` (HTTP 409): All rows in batch are duplicates or errors, resulting in 0 valid imports.
+
+

@@ -79,6 +79,14 @@ make migrate
   - `DELETE /api/v1/portfolios/{id}/sips/{sip_id}`: Delete a SIP (ledger transactions preserved) (204)
   - `GET /api/v1/portfolios/{id}/sips/{sip_id}/installments`: List installments with status filter & pagination (200)
   - `POST /api/v1/portfolios/{id}/sips/{sip_id}/installments/{inst_id}/skip`: Skip installment and safely remove linked ledger buy (200)
+  - `GET /api/v1/portfolios/{id}/imports/template`: Download official Excel transactions template (.xlsx) (200)
+  - `POST /api/v1/portfolios/{id}/imports`: Upload Excel file (.xlsx) and create preview with multiset duplicate detection (201)
+  - `GET /api/v1/portfolios/{id}/imports`: List import history batches for portfolio (200)
+  - `GET /api/v1/portfolios/{id}/imports/{import_id}`: Get import batch summary status and metadata (200)
+  - `GET /api/v1/portfolios/{id}/imports/{import_id}/rows`: Paginated inspection of staged import rows with status filter (200)
+  - `POST /api/v1/portfolios/{id}/imports/{import_id}/commit`: Commit staged valid transactions to ledger under portfolio row lock (200)
+  - `POST /api/v1/portfolios/{id}/imports/{import_id}/undo`: Undo committed import batch and reverse applied transactions under portfolio row lock (200)
+  - `DELETE /api/v1/portfolios/{id}/imports/{import_id}`: Discard staged import preview (200)
   - `GET /api/v1/health`: Lightweight liveness probe (200)
   - `GET /api/v1/health/ready`: PostgreSQL & Redis readiness probe (200/503)
   - `GET /docs`: Swagger OpenAPI documentation (development mode)
@@ -290,6 +298,46 @@ flowchart TD
   - Automatic trigger hook enqueues fund execution whenever historical NAV backfill completes or when a new SIP is created.
 - **Managed Transaction Protection**: Ledger transactions spawned by SIPs are protected against direct edits or deletions (`HTTP 409 TRANSACTION_MANAGED_BY_SIP`).
 - **Skip Semantics**: Installments can be skipped safely. Skipping an executed installment deletes its linked ledger buy under the portfolio row lock, enforcing that subsequent sells do not become inconsistent (`LEDGER_INCONSISTENT`).
+
+
+---
+
+## Excel Transaction Imports (Phase 4)
+
+```mermaid
+flowchart TD
+    User["Investor / UI"]
+    Upload["Upload .xlsx"]
+    ASGI["ImportUploadSizeLimitMiddleware (2 MB Cap)"]
+    Inspect["File Packaging & Defusedxml Security"]
+    Normalize["Row Normalization & Derivations"]
+    Planner["Multiset Duplicate Planner"]
+    Staging[("Import Staging Tables (24h TTL)")]
+    Commit["Commit Under Portfolio Row Lock"]
+    Ledger[("Portfolio Ledger")]
+
+    User -- "POST /imports" --> Upload
+    Upload --> ASGI
+    ASGI --> Inspect
+    Inspect --> Normalize
+    Normalize --> Planner
+    Planner --> Staging
+    User -- "POST /imports/{id}/commit" --> Commit
+    Commit -- "apply_transactions" --> Ledger
+```
+
+### Import Architecture Highlights
+- **Pre-upload Size Limiting**: `ImportUploadSizeLimitMiddleware` counts raw incoming stream bytes at the ASGI level and aborts oversized requests (> 2 MB) with `413 IMPORT_FILE_TOO_LARGE` before multipart parsing or disk spooling occurs.
+- **Multiset Duplicate Detection**: Prevents accidental re-import without breaking intentional repeated investments. For $n$ ledger matches and $m$ batch entries, exactly $\min(n, m)$ entries are flagged as duplicate (`DUPLICATE_IN_LEDGER`), and $\max(0, m - n)$ are imported.
+- **Row-Locked Atomic Commit & Undo**: Preview commits and undo operations acquire an exclusive row lock on the portfolio (`SELECT FOR UPDATE FROM portfolios WHERE id = ...`).
+- **Fixture Generation**: Run `make import-fixtures` (`python scripts/generate_import_fixtures.py`) to generate test fixtures and `expected.json`.
+- **File Limits**:
+  - Max file size: 2 MB (`IMPORT_MAX_FILE_BYTES`)
+  - Max uncompressed size: 20 MB (`IMPORT_MAX_UNCOMPRESSED_BYTES`)
+  - Max zip entries: 100 (`IMPORT_MAX_ZIP_ENTRIES`)
+  - Max data rows: 5,000 (`IMPORT_MAX_ROWS`)
+  - Preview TTL: 24 hours (purged daily at 04:00 IST / 22:30 UTC)
+
 
 
 ---
