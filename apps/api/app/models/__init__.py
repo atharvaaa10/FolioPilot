@@ -2,6 +2,7 @@
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 from app.models.fund import Fund
+from app.models.import_batch import TransactionImport, TransactionImportRow
 from app.models.nav_history import NavHistory
 from app.models.portfolio import Portfolio, PortfolioTarget
 from app.models.refresh_token import RefreshToken
@@ -23,6 +24,8 @@ __all__ = [
     "SipPause",
     "TimestampMixin",
     "Transaction",
+    "TransactionImport",
+    "TransactionImportRow",
     "UUIDPrimaryKeyMixin",
     "User",
 ]

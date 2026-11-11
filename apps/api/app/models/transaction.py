@@ -20,6 +20,7 @@ from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
     from app.models.fund import Fund
+    from app.models.import_batch import TransactionImport
     from app.models.portfolio import Portfolio
 
 
@@ -49,10 +50,18 @@ class Transaction(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         nullable=True,
         unique=True,
     )
+    import_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("transaction_imports.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     # Relationships
     portfolio: Mapped["Portfolio"] = relationship("Portfolio", back_populates="transactions")
     fund: Mapped["Fund"] = relationship("Fund", lazy="joined")
+    import_batch: Mapped["TransactionImport | None"] = relationship(
+        "TransactionImport", back_populates="transactions"
+    )
 
     __table_args__ = (
         CheckConstraint(
