@@ -17,6 +17,7 @@ from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.core.redis_lock import acquire_lock, release_lock
 from app.repositories.funds import FundRepository
+from app.repositories.imports import ImportRepository
 from app.repositories.refresh_tokens import RefreshTokenRepository
 from app.repositories.sync_runs import SyncRunRepository
 from app.services.fund_sync import sync_amfi_funds_and_nav
@@ -344,3 +345,29 @@ def execute_pending_for_fund(
 ) -> dict[str, Any]:
     """Execute pending installments specifically for one fund."""
     return asyncio.run(_async_execute_pending_for_fund(fund_id_str=fund_id_str, db_url=db_url))
+
+
+async def _async_purge_expired_import_previews(db_url: str | None = None) -> int:
+    """Execute asynchronous database purge of expired previewed imports with dedicated engine."""
+    target_url = _get_target_db_url(db_url)
+    engine = create_async_engine(target_url, poolclass=NullPool)
+    session_factory = async_sessionmaker(
+        bind=engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+    now_utc = datetime.now(UTC)
+    try:
+        async with session_factory() as session:
+            count = await ImportRepository.purge_expired_previews(session, now_utc)
+            await session.commit()
+            logger.info("purged_expired_import_previews", count=count)
+            return count
+    finally:
+        await engine.dispose()
+
+
+@celery_app.task(name="purge_expired_import_previews")  # type: ignore[untyped-decorator]
+def purge_expired_import_previews(db_url: str | None = None) -> int:
+    """Daily Celery Beat task to purge expired transaction import previews."""
+    return asyncio.run(_async_purge_expired_import_previews(db_url=db_url))

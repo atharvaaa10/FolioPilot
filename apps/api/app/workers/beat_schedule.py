@@ -28,7 +28,21 @@ SIP_MORNING_MINUTE_IST = 30
 SIP_MORNING_HOUR_UTC = 1
 SIP_MORNING_MINUTE_UTC = 0
 
+# Import preview purge schedule times:
+# 04:00 Asia/Kolkata (IST) -> 22:30 UTC
+IMPORT_PURGE_HOUR_IST = 4
+IMPORT_PURGE_MINUTE_IST = 0
+IMPORT_PURGE_HOUR_UTC = 22
+IMPORT_PURGE_MINUTE_UTC = 30
+
 CELERY_BEAT_SCHEDULE: dict[str, dict[str, object]] = {
+    "purge-expired-import-previews-daily": {
+        "task": "purge_expired_import_previews",
+        "schedule": crontab(
+            hour=IMPORT_PURGE_HOUR_UTC,
+            minute=IMPORT_PURGE_MINUTE_UTC,
+        ),
+    },
     "purge-expired-refresh-tokens-daily": {
         "task": "purge_expired_refresh_tokens",
         "schedule": crontab(
