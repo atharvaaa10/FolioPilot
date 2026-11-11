@@ -62,6 +62,7 @@ class TransactionResponse(BaseModel):
     amount: DecimalStr
     notes: str | None = None
     sip_installment_id: UUID | None = None
+    import_id: UUID | None = None
     created_at: datetime
     updated_at: datetime | None = None
 
