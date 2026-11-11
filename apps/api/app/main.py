@@ -8,7 +8,7 @@ from app.api import api_router
 from app.core.config import Settings, get_settings
 from app.core.errors import register_error_handlers
 from app.core.logging import get_logger, setup_logging
-from app.core.middleware import RequestIDAndLoggingMiddleware
+from app.core.middleware import ImportUploadSizeLimitMiddleware, RequestIDAndLoggingMiddleware
 from app.core.redis import close_redis_client
 
 logger = get_logger("app.main")
@@ -50,6 +50,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # Middleware: Request ID and structlog tracing (outermost execution)
     app.add_middleware(RequestIDAndLoggingMiddleware)
+
+    # Middleware: Import upload early byte limiter (enforces 2MB max before spooling)
+    app.add_middleware(ImportUploadSizeLimitMiddleware)
 
     # Middleware: CORS with strict credentials and explicit origins
     app.add_middleware(
