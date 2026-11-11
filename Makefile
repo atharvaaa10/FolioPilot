@@ -1,4 +1,4 @@
-.PHONY: up down logs migrate makemigration test test-api test-web lint format typecheck shell-api psql rebuild-web rebuild-python smoke sync-nav backfill-nav reclassify contract e2e run-sips
+.PHONY: up down logs migrate makemigration test test-api test-web lint format typecheck shell-api psql rebuild-web rebuild-python smoke sync-nav backfill-nav reclassify contract e2e run-sips import-fixtures
 
 # Default docker compose command
 DC = docker compose
@@ -70,4 +70,8 @@ e2e:
 
 run-sips:
 	$(DC) exec api python -m app.cli run-sips
+
+import-fixtures:
+	$(DC) exec api python scripts/generate_import_fixtures.py
+
 

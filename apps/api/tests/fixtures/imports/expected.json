@@ -1,0 +1,364 @@
+{
+  "worked-example.xlsx": {
+    "rows_total": 3,
+    "rows_ok": 3,
+    "rows_warning": 0,
+    "rows_duplicate": 0,
+    "rows_error": 0,
+    "will_import": 3,
+    "plan_fingerprint": "5994e82086925bbcd9dc4e452b32265d73af5cf12657be09d1ad3c46d7f6c4b9",
+    "extra_columns": [],
+    "funds_count": 1,
+    "date_range": {
+      "from": "2025-01-10",
+      "to": "2025-03-10"
+    },
+    "totals": {
+      "buy_amount": "8000.00",
+      "sell_amount": "2100.00"
+    },
+    "rows": [
+      {
+        "row_number": 2,
+        "status": "ok",
+        "txn_type": "buy",
+        "units": "100.0000",
+        "nav": "50.00000000",
+        "amount": "5000.00",
+        "error_codes": [],
+        "warning_codes": []
+      },
+      {
+        "row_number": 3,
+        "status": "ok",
+        "txn_type": "buy",
+        "units": "50.0000",
+        "nav": "60.00000000",
+        "amount": "3000.00",
+        "error_codes": [],
+        "warning_codes": []
+      },
+      {
+        "row_number": 4,
+        "status": "ok",
+        "txn_type": "sell",
+        "units": "30.0000",
+        "nav": "70.00000000",
+        "amount": "2100.00",
+        "error_codes": [],
+        "warning_codes": []
+      }
+    ]
+  },
+  "with-errors.xlsx": {
+    "rows_total": 10,
+    "rows_ok": 1,
+    "rows_warning": 0,
+    "rows_duplicate": 0,
+    "rows_error": 9,
+    "will_import": 1,
+    "plan_fingerprint": "a873ce70f80496a0cf8be78abb3dde957bfabb75786a767e92e55fadf1c05f7a",
+    "extra_columns": [],
+    "funds_count": 1,
+    "date_range": {
+      "from": "2025-01-10",
+      "to": "2025-01-10"
+    },
+    "totals": {
+      "buy_amount": "5000.00",
+      "sell_amount": "0.00"
+    },
+    "rows": [
+      {
+        "row_number": 2,
+        "status": "ok",
+        "txn_type": "buy",
+        "units": "100.0000",
+        "nav": "50.00000000",
+        "amount": "5000.00",
+        "error_codes": [],
+        "warning_codes": []
+      },
+      {
+        "row_number": 3,
+        "status": "error",
+        "txn_type": "buy",
+        "units": "10.0000",
+        "nav": "50.00000000",
+        "amount": "500.00",
+        "error_codes": [
+          "UNKNOWN_FUND"
+        ],
+        "warning_codes": []
+      },
+      {
+        "row_number": 4,
+        "status": "error",
+        "txn_type": "buy",
+        "units": "10.0000",
+        "nav": "50.00000000",
+        "amount": "500.00",
+        "error_codes": [
+          "INVALID_DATE"
+        ],
+        "warning_codes": []
+      },
+      {
+        "row_number": 5,
+        "status": "error",
+        "txn_type": null,
+        "units": "10.0000",
+        "nav": "50.00000000",
+        "amount": "500.00",
+        "error_codes": [
+          "INVALID_TYPE"
+        ],
+        "warning_codes": []
+      },
+      {
+        "row_number": 6,
+        "status": "error",
+        "txn_type": "buy",
+        "units": null,
+        "nav": "50.00000000",
+        "amount": "506.17",
+        "error_codes": [
+          "TOO_MANY_DECIMALS"
+        ],
+        "warning_codes": []
+      },
+      {
+        "row_number": 7,
+        "status": "error",
+        "txn_type": "buy",
+        "units": "10.0000",
+        "nav": "50.00000000",
+        "amount": null,
+        "error_codes": [
+          "NOT_POSITIVE"
+        ],
+        "warning_codes": []
+      },
+      {
+        "row_number": 8,
+        "status": "error",
+        "txn_type": "sell",
+        "units": "500.0000",
+        "nav": "50.00000000",
+        "amount": "25000.00",
+        "error_codes": [
+          "INSUFFICIENT_UNITS"
+        ],
+        "warning_codes": []
+      },
+      {
+        "row_number": 9,
+        "status": "error",
+        "txn_type": "buy",
+        "units": "10.0000",
+        "nav": "50.00000000",
+        "amount": "500.00",
+        "error_codes": [
+          "FUND_REQUIRED"
+        ],
+        "warning_codes": []
+      },
+      {
+        "row_number": 10,
+        "status": "error",
+        "txn_type": "buy",
+        "units": "10.0000",
+        "nav": "50.00000000",
+        "amount": "500.00",
+        "error_codes": [
+          "NOTES_TOO_LONG"
+        ],
+        "warning_codes": []
+      },
+      {
+        "row_number": 11,
+        "status": "error",
+        "txn_type": "buy",
+        "units": "10.0000",
+        "nav": "50.00000000",
+        "amount": null,
+        "error_codes": [
+          "FORMULA_WITHOUT_VALUE"
+        ],
+        "warning_codes": []
+      }
+    ]
+  },
+  "duplicates-in-file.xlsx": {
+    "rows_total": 3,
+    "rows_ok": 1,
+    "rows_warning": 2,
+    "rows_duplicate": 0,
+    "rows_error": 0,
+    "will_import": 3,
+    "plan_fingerprint": "8de252c5ec74b6ba8d90b01a54f0eccd1ec625391d48835cb69790088e58a843",
+    "extra_columns": [],
+    "funds_count": 1,
+    "date_range": {
+      "from": "2025-01-10",
+      "to": "2025-02-10"
+    },
+    "totals": {
+      "buy_amount": "13000.00",
+      "sell_amount": "0.00"
+    },
+    "rows": [
+      {
+        "row_number": 2,
+        "status": "warning",
+        "txn_type": "buy",
+        "units": "100.0000",
+        "nav": "50.00000000",
+        "amount": "5000.00",
+        "error_codes": [],
+        "warning_codes": [
+          "DUPLICATE_IN_FILE"
+        ]
+      },
+      {
+        "row_number": 3,
+        "status": "warning",
+        "txn_type": "buy",
+        "units": "100.0000",
+        "nav": "50.00000000",
+        "amount": "5000.00",
+        "error_codes": [],
+        "warning_codes": [
+          "DUPLICATE_IN_FILE"
+        ]
+      },
+      {
+        "row_number": 4,
+        "status": "ok",
+        "txn_type": "buy",
+        "units": "50.0000",
+        "nav": "60.00000000",
+        "amount": "3000.00",
+        "error_codes": [],
+        "warning_codes": []
+      }
+    ]
+  },
+  "formats.xlsx": {
+    "rows_total": 2,
+    "rows_ok": 2,
+    "rows_warning": 0,
+    "rows_duplicate": 0,
+    "rows_error": 0,
+    "will_import": 2,
+    "plan_fingerprint": "f3668a05e665227260c23eca11bcfba502cbcddd50bd2156a1fcf523d872e027",
+    "extra_columns": [],
+    "funds_count": 1,
+    "date_range": {
+      "from": "2025-01-15",
+      "to": "2025-02-20"
+    },
+    "totals": {
+      "buy_amount": "502525.13",
+      "sell_amount": "55000.00"
+    },
+    "rows": [
+      {
+        "row_number": 2,
+        "status": "ok",
+        "txn_type": "buy",
+        "units": "10000.5000",
+        "nav": "50.25000000",
+        "amount": "502525.13",
+        "error_codes": [],
+        "warning_codes": []
+      },
+      {
+        "row_number": 3,
+        "status": "ok",
+        "txn_type": "sell",
+        "units": "1000.0000",
+        "nav": "55.00000000",
+        "amount": "55000.00",
+        "error_codes": [],
+        "warning_codes": []
+      }
+    ]
+  },
+  "isin.xlsx": {
+    "rows_total": 2,
+    "rows_ok": 2,
+    "rows_warning": 0,
+    "rows_duplicate": 0,
+    "rows_error": 0,
+    "will_import": 2,
+    "plan_fingerprint": "651531b3978c32230a22e292b874933e3c8ed3833e27dc8f0e2b9de699609ecf",
+    "extra_columns": [],
+    "funds_count": 2,
+    "date_range": {
+      "from": "2025-01-10",
+      "to": "2025-01-12"
+    },
+    "totals": {
+      "buy_amount": "5000.00",
+      "sell_amount": "0.00"
+    },
+    "rows": [
+      {
+        "row_number": 2,
+        "status": "ok",
+        "txn_type": "buy",
+        "units": "10.0000",
+        "nav": "100.00000000",
+        "amount": "1000.00",
+        "error_codes": [],
+        "warning_codes": []
+      },
+      {
+        "row_number": 3,
+        "status": "ok",
+        "txn_type": "buy",
+        "units": "20.0000",
+        "nav": "200.00000000",
+        "amount": "4000.00",
+        "error_codes": [],
+        "warning_codes": []
+      }
+    ]
+  },
+  "extra-columns.xlsx": {
+    "rows_total": 1,
+    "rows_ok": 1,
+    "rows_warning": 0,
+    "rows_duplicate": 0,
+    "rows_error": 0,
+    "will_import": 1,
+    "plan_fingerprint": "657aba6500300a8d47ac240f9efeecb10941f46395a23fc4cc8af64f199e8c37",
+    "extra_columns": [
+      "broker_name",
+      "folio_number",
+      "external_id"
+    ],
+    "funds_count": 1,
+    "date_range": {
+      "from": "2025-01-10",
+      "to": "2025-01-10"
+    },
+    "totals": {
+      "buy_amount": "5000.00",
+      "sell_amount": "0.00"
+    },
+    "rows": [
+      {
+        "row_number": 2,
+        "status": "ok",
+        "txn_type": "buy",
+        "units": "100.0000",
+        "nav": "50.00000000",
+        "amount": "5000.00",
+        "error_codes": [],
+        "warning_codes": []
+      }
+    ]
+  }
+}

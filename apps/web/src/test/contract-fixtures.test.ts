@@ -6,6 +6,16 @@ import {
   FundNavHistoryResponseSchema,
   FundSearchResponseSchema,
   HoldingsResponseSchema,
+  ImportAlreadyCommittedErrorSchema,
+  ImportFileInvalidErrorSchema,
+  ImportFileTooLargeErrorSchema,
+  ImportHasErrorsErrorSchema,
+  ImportHistoryListSchema,
+  ImportNothingToImportErrorSchema,
+  ImportRowsPageResponseSchema,
+  ImportStaleErrorSchema,
+  ImportSummaryResponseSchema,
+  ImportTemplateMismatchErrorSchema,
   InstallmentNotSkippableErrorSchema,
   InsufficientUnitsErrorSchema,
   LedgerInconsistentErrorSchema,
@@ -48,6 +58,16 @@ import errorSipAlreadyEndedFixture from "./fixtures/contract/error-sip-already-e
 import errorTransactionManagedBySipFixture from "./fixtures/contract/error-transaction-managed-by-sip.json";
 import errorInstallmentNotSkippableFixture from "./fixtures/contract/error-installment-not-skippable.json";
 import errorFundInactiveFixture from "./fixtures/contract/error-fund-inactive.json";
+import importSummaryFixture from "./fixtures/contract/import-summary.json";
+import importRowsFixture from "./fixtures/contract/import-rows.json";
+import importHistoryFixture from "./fixtures/contract/import-history.json";
+import errorImportAlreadyCommittedFixture from "./fixtures/contract/error-import-already-committed.json";
+import errorImportFileInvalidFixture from "./fixtures/contract/error-import-file-invalid.json";
+import errorImportFileTooLargeFixture from "./fixtures/contract/error-import-file-too-large.json";
+import errorImportHasErrorsFixture from "./fixtures/contract/error-import-has-errors.json";
+import errorImportNothingToImportFixture from "./fixtures/contract/error-import-nothing-to-import.json";
+import errorImportStaleFixture from "./fixtures/contract/error-import-stale.json";
+import errorImportTemplateMismatchFixture from "./fixtures/contract/error-import-template-mismatch.json";
 
 describe("Committed Contract Fixtures Validation", () => {
   it("validates portfolio-detail.json against PortfolioDetailSchema", () => {
@@ -235,6 +255,82 @@ describe("Committed Contract Fixtures Validation", () => {
       "error-fund-inactive.json",
     );
     expect(errInactive.code).toBe("FUND_INACTIVE");
+  });
+
+  it("validates Phase 4 import contract fixtures and error schemas", () => {
+    const summary = validateContract(
+      ImportSummaryResponseSchema,
+      importSummaryFixture,
+      "import-summary.json",
+    );
+    expect(summary.status).toBe("previewed");
+    expect(summary.rows_total).toBe(3);
+    expect(summary.will_import).toBe(3);
+
+    const rows = validateContract(
+      ImportRowsPageResponseSchema,
+      importRowsFixture,
+      "import-rows.json",
+    );
+    expect(rows.items.length).toBe(1);
+    expect(rows.items[0]?.status).toBe("ok");
+
+    const history = validateContract(
+      ImportHistoryListSchema,
+      importHistoryFixture,
+      "import-history.json",
+    );
+    expect(history.length).toBe(1);
+    expect(history[0]?.status).toBe("previewed");
+
+    const errCommitted = validateContract(
+      ImportAlreadyCommittedErrorSchema,
+      errorImportAlreadyCommittedFixture,
+      "error-import-already-committed.json",
+    );
+    expect(errCommitted.code).toBe("IMPORT_ALREADY_COMMITTED");
+
+    const errInvalid = validateContract(
+      ImportFileInvalidErrorSchema,
+      errorImportFileInvalidFixture,
+      "error-import-file-invalid.json",
+    );
+    expect(errInvalid.code).toBe("IMPORT_FILE_INVALID");
+
+    const errTooLarge = validateContract(
+      ImportFileTooLargeErrorSchema,
+      errorImportFileTooLargeFixture,
+      "error-import-file-too-large.json",
+    );
+    expect(errTooLarge.code).toBe("IMPORT_FILE_TOO_LARGE");
+
+    const errHasErrors = validateContract(
+      ImportHasErrorsErrorSchema,
+      errorImportHasErrorsFixture,
+      "error-import-has-errors.json",
+    );
+    expect(errHasErrors.code).toBe("IMPORT_HAS_ERRORS");
+
+    const errNothing = validateContract(
+      ImportNothingToImportErrorSchema,
+      errorImportNothingToImportFixture,
+      "error-import-nothing-to-import.json",
+    );
+    expect(errNothing.code).toBe("IMPORT_NOTHING_TO_IMPORT");
+
+    const errStale = validateContract(
+      ImportStaleErrorSchema,
+      errorImportStaleFixture,
+      "error-import-stale.json",
+    );
+    expect(errStale.code).toBe("IMPORT_STALE");
+
+    const errMismatch = validateContract(
+      ImportTemplateMismatchErrorSchema,
+      errorImportTemplateMismatchFixture,
+      "error-import-template-mismatch.json",
+    );
+    expect(errMismatch.code).toBe("IMPORT_TEMPLATE_MISMATCH");
   });
 });
 

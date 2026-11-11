@@ -112,7 +112,8 @@ async def test_session(test_infra: None) -> AsyncGenerator[AsyncSession, None]:
     async with _test_engine.begin() as conn:
         await conn.execute(
             text(
-                "TRUNCATE TABLE transactions, sip_installments, sip_pauses, sips, "
+                "TRUNCATE TABLE transaction_import_rows, transaction_imports, "
+                "transactions, sip_installments, sip_pauses, sips, "
                 "portfolio_targets, portfolios, nav_sync_runs, nav_history, funds, "
                 "refresh_tokens, users CASCADE;"
             )
@@ -125,7 +126,8 @@ async def test_session(test_infra: None) -> AsyncGenerator[AsyncSession, None]:
     async with _test_engine.begin() as conn:
         await conn.execute(
             text(
-                "TRUNCATE TABLE transactions, sip_installments, sip_pauses, sips, "
+                "TRUNCATE TABLE transaction_import_rows, transaction_imports, "
+                "transactions, sip_installments, sip_pauses, sips, "
                 "portfolio_targets, portfolios, nav_sync_runs, nav_history, funds, "
                 "refresh_tokens, users CASCADE;"
             )
