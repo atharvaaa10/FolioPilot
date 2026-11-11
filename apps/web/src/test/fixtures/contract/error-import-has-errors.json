@@ -1,0 +1,8 @@
+{
+  "code": "IMPORT_HAS_ERRORS",
+  "message": "Import contains invalid rows",
+  "details": {
+    "rows_error": 9,
+    "will_import": 1
+  }
+}

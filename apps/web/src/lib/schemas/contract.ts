@@ -128,6 +128,7 @@ export const TransactionItemSchema = z.object({
   amount: z.string(),
   notes: z.string().nullable().optional(),
   sip_installment_id: z.string().uuid().nullable().optional(),
+  import_id: z.string().uuid().nullable().optional(),
   created_at: z.string(),
   updated_at: z.string().nullable().optional(),
 });
@@ -387,4 +388,138 @@ export const FundInactiveErrorSchema = z.object({
   message: z.string(),
   details: z.record(z.unknown()).optional(),
 });
+
+// -------------------------------------------------------------
+// Excel Transaction Imports (Phase 4)
+// -------------------------------------------------------------
+export const ImportFundSummarySchema = z.object({
+  scheme_code: z.number(),
+  name: z.string(),
+  amc: z.string().nullable().optional(),
+  plan_type: z.string().nullable().optional(),
+  option_type: z.string().nullable().optional(),
+  is_active: z.boolean().default(true),
+});
+export type ImportFundSummary = z.infer<typeof ImportFundSummarySchema>;
+
+export const RowMessageSchema = z.object({
+  level: z.enum(["error", "warning", "info"]),
+  code: z.string(),
+  field: z.string().nullable().optional(),
+  message: z.string(),
+  details: z.unknown().optional(),
+});
+export type RowMessage = z.infer<typeof RowMessageSchema>;
+
+export const ImportRowResponseSchema = z.object({
+  row_number: z.number(),
+  status: z.enum(["ok", "warning", "duplicate", "error"]),
+  fund: ImportFundSummarySchema.nullable().optional(),
+  fund_name_in_file: z.string().nullable().optional(),
+  txn_type: z.string().nullable().optional(),
+  txn_date: z.string().nullable().optional(),
+  units: z.string().nullable().optional(),
+  nav: z.string().nullable().optional(),
+  amount: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+  raw: z.record(z.string()).default({}),
+  messages: z.array(RowMessageSchema).default([]),
+});
+export type ImportRow = z.infer<typeof ImportRowResponseSchema>;
+
+export const ImportDateRangeSchema = z.object({
+  from: z.string().nullable().optional(),
+  to: z.string().nullable().optional(),
+});
+
+export const ImportTotalsSchema = z.object({
+  buy_amount: z.string().default("0.00"),
+  sell_amount: z.string().default("0.00"),
+});
+
+export const ImportSummaryResponseSchema = z.object({
+  id: z.string().uuid(),
+  portfolio_id: z.string().uuid(),
+  filename: z.string(),
+  file_sha256: z.string(),
+  status: z.enum(["previewed", "committed", "undone"]),
+  rows_total: z.number(),
+  rows_ok: z.number(),
+  rows_warning: z.number(),
+  rows_duplicate: z.number(),
+  rows_error: z.number(),
+  will_import: z.number(),
+  plan_fingerprint: z.string(),
+  extra_columns: z.array(z.string()).nullable().optional(),
+  funds_count: z.number().default(0),
+  date_range: ImportDateRangeSchema.nullable().optional(),
+  totals: ImportTotalsSchema.default({ buy_amount: "0.00", sell_amount: "0.00" }),
+  blocking_errors: z.array(z.string()).default([]),
+  previewed_at: z.string(),
+  expires_at: z.string(),
+  committed_count: z.number().nullable().optional(),
+  committed_at: z.string().nullable().optional(),
+  undone_count: z.number().nullable().optional(),
+  undone_at: z.string().nullable().optional(),
+});
+export type ImportSummary = z.infer<typeof ImportSummaryResponseSchema>;
+
+export const ImportUploadResponseSchema = z.object({
+  import: ImportSummaryResponseSchema,
+  rows: z.array(ImportRowResponseSchema),
+});
+export type ImportUploadResponse = z.infer<typeof ImportUploadResponseSchema>;
+
+export const ImportRowsPageResponseSchema = z.object({
+  items: z.array(ImportRowResponseSchema),
+  has_more: z.boolean().default(false),
+});
+export type ImportRowsPageResponse = z.infer<typeof ImportRowsPageResponseSchema>;
+
+export const ImportHistoryListSchema = z.array(ImportSummaryResponseSchema);
+export type ImportHistoryList = z.infer<typeof ImportHistoryListSchema>;
+
+// Phase 4 Import Errors
+export const ImportFileInvalidErrorSchema = z.object({
+  code: z.literal("IMPORT_FILE_INVALID"),
+  message: z.string(),
+  details: z.unknown().optional(),
+});
+
+export const ImportFileTooLargeErrorSchema = z.object({
+  code: z.literal("IMPORT_FILE_TOO_LARGE"),
+  message: z.string(),
+  details: z.unknown().optional(),
+});
+
+export const ImportTemplateMismatchErrorSchema = z.object({
+  code: z.literal("IMPORT_TEMPLATE_MISMATCH"),
+  message: z.string(),
+  details: z.unknown().optional(),
+});
+
+export const ImportHasErrorsErrorSchema = z.object({
+  code: z.literal("IMPORT_HAS_ERRORS"),
+  message: z.string(),
+  details: z.unknown().optional(),
+});
+
+export const ImportStaleErrorSchema = z.object({
+  code: z.literal("IMPORT_STALE"),
+  message: z.string(),
+  details: z.unknown().optional(),
+});
+
+export const ImportNothingToImportErrorSchema = z.object({
+  code: z.literal("IMPORT_NOTHING_TO_IMPORT"),
+  message: z.string(),
+  details: z.unknown().optional(),
+});
+
+export const ImportAlreadyCommittedErrorSchema = z.object({
+  code: z.literal("IMPORT_ALREADY_COMMITTED"),
+  message: z.string(),
+  details: z.unknown().optional(),
+});
+
 

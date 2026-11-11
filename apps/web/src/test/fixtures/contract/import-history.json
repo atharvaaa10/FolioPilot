@@ -1,0 +1,33 @@
+[
+  {
+    "id": "55555555-5555-5555-5555-555555555555",
+    "portfolio_id": "11111111-1111-1111-1111-111111111111",
+    "filename": "worked-example.xlsx",
+    "file_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "status": "previewed",
+    "rows_total": 3,
+    "rows_ok": 3,
+    "rows_warning": 0,
+    "rows_duplicate": 0,
+    "rows_error": 0,
+    "will_import": 3,
+    "plan_fingerprint": "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+    "extra_columns": [],
+    "funds_count": 1,
+    "date_range": {
+      "from": "2025-01-10",
+      "to": "2025-03-10"
+    },
+    "totals": {
+      "buy_amount": "8000.00",
+      "sell_amount": "2100.00"
+    },
+    "blocking_errors": [],
+    "previewed_at": "2026-01-01T00:00:00Z",
+    "expires_at": "2026-01-02T00:00:00Z",
+    "committed_count": null,
+    "committed_at": null,
+    "undone_count": null,
+    "undone_at": null
+  }
+]

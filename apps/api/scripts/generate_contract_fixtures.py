@@ -357,6 +357,118 @@ def generate_fixtures() -> dict[str, Any]:
         },
     }
 
+    # Phase 4 Import Contract Fixtures
+    import_id = "55555555-5555-5555-5555-555555555555"
+    import_summary_data = {
+        "id": import_id,
+        "portfolio_id": portfolio_id,
+        "filename": "worked-example.xlsx",
+        "file_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "status": "previewed",
+        "rows_total": 3,
+        "rows_ok": 3,
+        "rows_warning": 0,
+        "rows_duplicate": 0,
+        "rows_error": 0,
+        "will_import": 3,
+        "plan_fingerprint": "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+        "extra_columns": [],
+        "funds_count": 1,
+        "date_range": {
+            "from": "2025-01-10",
+            "to": "2025-03-10",
+        },
+        "totals": {
+            "buy_amount": "8000.00",
+            "sell_amount": "2100.00",
+        },
+        "blocking_errors": [],
+        "previewed_at": "2026-01-01T00:00:00Z",
+        "expires_at": "2026-01-02T00:00:00Z",
+        "committed_count": None,
+        "committed_at": None,
+        "undone_count": None,
+        "undone_at": None,
+    }
+
+    import_rows_data = {
+        "items": [
+            {
+                "row_number": 2,
+                "status": "ok",
+                "fund": {
+                    "scheme_code": 122639,
+                    "name": "Parag Parikh Flexi Cap Fund",
+                    "amc": "PPFAS Mutual Fund",
+                    "plan_type": "direct",
+                    "option_type": "growth",
+                    "is_active": True,
+                },
+                "fund_name_in_file": "Parag Parikh Flexi Cap",
+                "txn_type": "buy",
+                "txn_date": "2025-01-10",
+                "units": "100.0000",
+                "nav": "50.00000000",
+                "amount": "5000.00",
+                "notes": "Initial lump sum",
+                "raw": {
+                    "txn_date": "2025-01-10",
+                    "scheme_code": "122639",
+                    "txn_type": "buy",
+                    "units": "100",
+                    "nav": "50",
+                    "amount": "5000",
+                },
+                "messages": [],
+            }
+        ],
+        "has_more": False,
+    }
+
+    import_history_data = [import_summary_data]
+
+    error_import_file_invalid = {
+        "code": "IMPORT_FILE_INVALID",
+        "message": "Invalid import file format",
+        "details": None,
+    }
+
+    error_import_file_too_large = {
+        "code": "IMPORT_FILE_TOO_LARGE",
+        "message": "Import file exceeds maximum allowed size",
+        "details": {"max_bytes": 2097152},
+    }
+
+    error_import_template_mismatch = {
+        "code": "IMPORT_TEMPLATE_MISMATCH",
+        "message": "Missing required columns in template header",
+        "details": {"missing_headers": ["txn_type"]},
+    }
+
+    error_import_has_errors = {
+        "code": "IMPORT_HAS_ERRORS",
+        "message": "Import contains invalid rows",
+        "details": {"rows_error": 9, "will_import": 1},
+    }
+
+    error_import_stale = {
+        "code": "IMPORT_STALE",
+        "message": "Import preview is stale due to recent ledger changes",
+        "details": None,
+    }
+
+    error_import_nothing_to_import = {
+        "code": "IMPORT_NOTHING_TO_IMPORT",
+        "message": "No rows to import",
+        "details": None,
+    }
+
+    error_import_already_committed = {
+        "code": "IMPORT_ALREADY_COMMITTED",
+        "message": "Import has already been committed",
+        "details": None,
+    }
+
     fixtures = {
         "targets.json": targets_data,
         "portfolio-detail.json": portfolio_detail_data,
@@ -380,6 +492,16 @@ def generate_fixtures() -> dict[str, Any]:
         "error-transaction-managed-by-sip.json": error_transaction_managed_by_sip,
         "error-installment-not-skippable.json": error_installment_not_skippable,
         "error-fund-inactive.json": error_fund_inactive,
+        "import-summary.json": import_summary_data,
+        "import-rows.json": import_rows_data,
+        "import-history.json": import_history_data,
+        "error-import-file-invalid.json": error_import_file_invalid,
+        "error-import-file-too-large.json": error_import_file_too_large,
+        "error-import-template-mismatch.json": error_import_template_mismatch,
+        "error-import-has-errors.json": error_import_has_errors,
+        "error-import-stale.json": error_import_stale,
+        "error-import-nothing-to-import.json": error_import_nothing_to_import,
+        "error-import-already-committed.json": error_import_already_committed,
     }
 
     for filename, content in fixtures.items():

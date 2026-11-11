@@ -1,0 +1,7 @@
+{
+  "code": "IMPORT_FILE_TOO_LARGE",
+  "message": "Import file exceeds maximum allowed size",
+  "details": {
+    "max_bytes": 2097152
+  }
+}

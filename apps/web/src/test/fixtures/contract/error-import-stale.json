@@ -1,0 +1,5 @@
+{
+  "code": "IMPORT_STALE",
+  "message": "Import preview is stale due to recent ledger changes",
+  "details": null
+}

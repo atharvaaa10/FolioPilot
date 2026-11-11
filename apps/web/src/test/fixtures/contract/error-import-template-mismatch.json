@@ -1,0 +1,9 @@
+{
+  "code": "IMPORT_TEMPLATE_MISMATCH",
+  "message": "Missing required columns in template header",
+  "details": {
+    "missing_headers": [
+      "txn_type"
+    ]
+  }
+}

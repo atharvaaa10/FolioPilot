@@ -1,0 +1,33 @@
+{
+  "items": [
+    {
+      "row_number": 2,
+      "status": "ok",
+      "fund": {
+        "scheme_code": 122639,
+        "name": "Parag Parikh Flexi Cap Fund",
+        "amc": "PPFAS Mutual Fund",
+        "plan_type": "direct",
+        "option_type": "growth",
+        "is_active": true
+      },
+      "fund_name_in_file": "Parag Parikh Flexi Cap",
+      "txn_type": "buy",
+      "txn_date": "2025-01-10",
+      "units": "100.0000",
+      "nav": "50.00000000",
+      "amount": "5000.00",
+      "notes": "Initial lump sum",
+      "raw": {
+        "txn_date": "2025-01-10",
+        "scheme_code": "122639",
+        "txn_type": "buy",
+        "units": "100",
+        "nav": "50",
+        "amount": "5000"
+      },
+      "messages": []
+    }
+  ],
+  "has_more": false
+}
