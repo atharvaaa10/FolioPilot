@@ -94,6 +94,7 @@ class TransactionRepository:
         amount: Decimal,
         notes: str | None = None,
         sip_installment_id: UUID | None = None,
+        import_id: UUID | None = None,
     ) -> Transaction:
         """Append a transaction to the portfolio ledger."""
         txn = Transaction(
@@ -106,10 +107,21 @@ class TransactionRepository:
             amount=amount,
             notes=notes.strip() if notes else None,
             sip_installment_id=sip_installment_id,
+            import_id=import_id,
         )
         session.add(txn)
         await session.flush()
         return txn
+
+    @staticmethod
+    async def create_batch(
+        session: AsyncSession,
+        transactions: list[Transaction],
+    ) -> list[Transaction]:
+        """Bulk append transactions to the portfolio ledger."""
+        session.add_all(transactions)
+        await session.flush()
+        return transactions
 
     @staticmethod
     async def delete(session: AsyncSession, transaction: Transaction) -> None:
