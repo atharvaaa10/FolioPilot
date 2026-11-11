@@ -8,6 +8,7 @@ import {
   AlertCircle,
   ArrowLeft,
   Edit2,
+  FileSpreadsheet,
   HelpCircle,
   Loader2,
   Plus,
@@ -32,6 +33,8 @@ import type { SipDetail, SipListResponse } from "@/lib/schemas/contract";
 import { CreateSipDialog } from "@/components/sips/create-sip-dialog";
 import { SipCard } from "@/components/sips/sip-card";
 import { InstallmentsDialog } from "@/components/sips/installments-dialog";
+import { ImportDialog } from "@/components/imports/import-dialog";
+import { ImportHistory } from "@/components/imports/import-history";
 import { fundsApi } from "@/lib/funds-api";
 import {
   formatDate,
@@ -172,6 +175,7 @@ export default function PortfolioDetailPage({ params }: PageProps) {
 
   // Add Transaction Modal State
   const [isAddTxnOpen, setIsAddTxnOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const [fundSearch, setFundSearch] = useState("");
   const debouncedFundSearch = useDebounce(fundSearch, 300);
   const [selectedFund, setSelectedFund] = useState<FundSearchItem | null>(null);
@@ -431,6 +435,14 @@ export default function PortfolioDetailPage({ params }: PageProps) {
         </div>
 
         <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            onClick={() => setIsImportOpen(true)}
+            className="inline-flex items-center gap-1.5"
+          >
+            <FileSpreadsheet className="h-4 w-4" />
+            <span>Import from Excel</span>
+          </Button>
           <Button
             onClick={() => {
               resetTxnForm();
@@ -949,6 +961,15 @@ export default function PortfolioDetailPage({ params }: PageProps) {
                             SIP
                           </Badge>
                         )}
+                        {txn.import_id && (
+                          <Badge
+                            variant="secondary"
+                            className="bg-purple-500/10 text-purple-600 border-purple-500/20 text-[10px] ml-1.5 uppercase font-medium"
+                            title="Imported from Excel file"
+                          >
+                            Imported
+                          </Badge>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -1022,6 +1043,9 @@ export default function PortfolioDetailPage({ params }: PageProps) {
           )}
         </CardContent>
       </Card>
+
+      {/* Import History */}
+      <ImportHistory portfolioId={id} />
 
       {/* Add Transaction Dialog */}
       <Dialog open={isAddTxnOpen} onOpenChange={setIsAddTxnOpen}>
@@ -1397,6 +1421,12 @@ export default function PortfolioDetailPage({ params }: PageProps) {
         sip={selectedSipForInstallments}
         open={!!selectedSipForInstallments}
         onOpenChange={(open) => !open && setSelectedSipForInstallments(null)}
+      />
+
+      <ImportDialog
+        portfolioId={id}
+        open={isImportOpen}
+        onOpenChange={setIsImportOpen}
       />
     </div>
   );
