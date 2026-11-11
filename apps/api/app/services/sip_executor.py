@@ -4,7 +4,6 @@ from collections import defaultdict
 from collections.abc import Callable
 from datetime import UTC, date, datetime
 from decimal import Decimal
-from typing import Any
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -15,7 +14,7 @@ from app.core.constants import MAX_INSTALLMENTS_PER_GENERATION
 from app.core.errors import TransactionLimitReachedError
 from app.core.logging import get_logger
 from app.models.nav_history import NavHistory
-from app.models.sip import Sip, SipInstallment
+from app.models.sip import Sip
 from app.repositories.portfolios import PortfolioRepository
 from app.repositories.sips import SipRepository
 from app.services.sip_execution import pick_nav

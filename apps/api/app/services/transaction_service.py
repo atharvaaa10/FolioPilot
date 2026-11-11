@@ -56,6 +56,97 @@ class TransactionService:
     """Service orchestrating ledger mutations under pessimistic portfolio row locks."""
 
     @staticmethod
+    async def apply_transactions(
+        session: AsyncSession,
+        portfolio_id: UUID,
+        user_id: UUID,
+        transactions_data: list[dict[str, Any]],
+        import_id: UUID | None = None,
+        already_planned: bool = False,
+        clock: Callable[[], datetime] | None = None,
+    ) -> list[Transaction]:
+        """Apply a batch of transactions to the portfolio ledger in ONE database transaction."""
+        portfolio = await PortfolioRepository.get_for_update(session, portfolio_id, user_id=user_id)
+        if portfolio is None:
+            raise PortfolioNotFoundError("Portfolio not found")
+
+        current_count = await TransactionRepository.count_by_portfolio(session, portfolio_id)
+        if current_count + len(transactions_data) > MAX_TRANSACTIONS_PER_PORTFOLIO:
+            raise TransactionLimitReachedError(
+                f"Cannot exceed limit of {MAX_TRANSACTIONS_PER_PORTFOLIO} "
+                "transactions per portfolio"
+            )
+
+        now_utc = clock() if clock else datetime.now(UTC)
+
+        if already_planned:
+            funds_map: dict[UUID, Any] = {}
+            txns_to_create: list[Transaction] = []
+            cand_by_fund: dict[UUID, list[Transaction]] = {}
+
+            for data in transactions_data:
+                f_id = data["fund_id"]
+                if "fund" in data and data["fund"] is not None:
+                    funds_map[f_id] = data["fund"]
+
+                txn_obj = Transaction(
+                    portfolio_id=portfolio_id,
+                    fund_id=f_id,
+                    txn_type=data["txn_type"].lower(),
+                    txn_date=data["txn_date"],
+                    units=data["units"],
+                    nav=data["nav"],
+                    amount=data["amount"],
+                    notes=data["notes"].strip() if data.get("notes") else None,
+                    import_id=import_id,
+                    created_at=now_utc,
+                )
+                txns_to_create.append(txn_obj)
+                cand_by_fund.setdefault(f_id, []).append(txn_obj)
+
+            # Validate each affected fund ledger
+            for f_id, new_txns in cand_by_fund.items():
+                existing = await TransactionRepository.list_by_portfolio(
+                    session, portfolio_id, fund_id=f_id, load_fund=False
+                )
+                validate_ledger(existing + new_txns, mutation_type="add")
+
+            # Bulk insert
+            created = await TransactionRepository.create_batch(session, txns_to_create)
+
+            # Ensure tracking for distinct funds
+            for f_id in cand_by_fund.keys():
+                fund_obj = funds_map.get(f_id)
+                if fund_obj is None:
+                    fund_obj = await FundRepository.get_by_id(session, f_id)
+                if fund_obj is not None:
+                    try:
+                        await ensure_tracked(session, fund_obj, enqueue_task=True)
+                    except Exception:
+                        pass
+
+            return created
+        else:
+            created_list: list[Transaction] = []
+            for item in transactions_data:
+                txn = await TransactionService.add_transaction(
+                    session,
+                    portfolio_id=portfolio_id,
+                    user_id=user_id,
+                    fund_id=item["fund_id"],
+                    txn_type=item["txn_type"],
+                    txn_date=item["txn_date"],
+                    units=item.get("units"),
+                    nav=item.get("nav"),
+                    amount=item.get("amount"),
+                    notes=item.get("notes"),
+                    sip_installment_id=item.get("sip_installment_id"),
+                    clock=clock,
+                )
+                created_list.append(txn)
+            return created_list
+
+    @staticmethod
     async def add_transaction(
         session: AsyncSession,
         portfolio_id: UUID,

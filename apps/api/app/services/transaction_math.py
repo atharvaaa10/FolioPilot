@@ -9,6 +9,10 @@ UNITS_QUANT = Decimal("0.0001")
 NAV_QUANT = Decimal("0.00000001")
 AMOUNT_QUANT = Decimal("0.01")
 
+UNITS_SCALE: int = abs(int(UNITS_QUANT.as_tuple().exponent))
+NAV_SCALE: int = abs(int(NAV_QUANT.as_tuple().exponent))
+AMOUNT_SCALE: int = abs(int(AMOUNT_QUANT.as_tuple().exponent))
+
 
 def validate_scales(
     units: Decimal | None = None,
@@ -22,8 +26,8 @@ def validate_scales(
         if units <= Decimal("0"):
             raise ValidationError("Units must be greater than zero")
         exp = units.as_tuple().exponent
-        if not isinstance(exp, int) or exp < -4:
-            raise ValidationError("Units cannot exceed 4 decimal places")
+        if not isinstance(exp, int) or exp < -UNITS_SCALE:
+            raise ValidationError(f"Units cannot exceed {UNITS_SCALE} decimal places")
 
     if nav is not None:
         if not nav.is_finite():
@@ -31,8 +35,8 @@ def validate_scales(
         if nav <= Decimal("0"):
             raise ValidationError("NAV must be greater than zero")
         exp = nav.as_tuple().exponent
-        if not isinstance(exp, int) or exp < -8:
-            raise ValidationError("NAV cannot exceed 8 decimal places")
+        if not isinstance(exp, int) or exp < -NAV_SCALE:
+            raise ValidationError(f"NAV cannot exceed {NAV_SCALE} decimal places")
 
     if amount is not None:
         if not amount.is_finite():
@@ -40,8 +44,8 @@ def validate_scales(
         if amount <= Decimal("0"):
             raise ValidationError("Amount must be greater than zero")
         exp = amount.as_tuple().exponent
-        if not isinstance(exp, int) or exp < -2:
-            raise ValidationError("Amount cannot exceed 2 decimal places")
+        if not isinstance(exp, int) or exp < -AMOUNT_SCALE:
+            raise ValidationError(f"Amount cannot exceed {AMOUNT_SCALE} decimal places")
 
 
 def resolve_transaction_amounts(
