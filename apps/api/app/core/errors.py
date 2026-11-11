@@ -279,6 +279,97 @@ class FundInactiveError(ConflictError):
         super().__init__(message=message, code="FUND_INACTIVE", details=details)
 
 
+# Excel Import Errors (Phase 4)
+class ImportFileInvalidError(ValidationError):
+    """Uploaded file failed safety or format validation (HTTP 422)."""
+
+    def __init__(self, message: str = "Invalid import file", details: Any = None) -> None:
+        super().__init__(message=message, details=details)
+        self.code = "IMPORT_FILE_INVALID"
+
+
+class ImportFileTooLargeError(AppError):
+    """Uploaded file exceeds max size limit (HTTP 413)."""
+
+    def __init__(self, message: str = "Import file too large", details: Any = None) -> None:
+        super().__init__(
+            message=message, code="IMPORT_FILE_TOO_LARGE", status_code=413, details=details
+        )
+
+
+class ImportTooManyRowsError(ValidationError):
+    """File contains more rows than maximum allowed limit (HTTP 422)."""
+
+    def __init__(
+        self, message: str = "Import file contains too many rows", details: Any = None
+    ) -> None:
+        super().__init__(message=message, details=details)
+        self.code = "IMPORT_TOO_MANY_ROWS"
+
+
+class ImportEmptyError(ValidationError):
+    """File contains no data rows (HTTP 422)."""
+
+    def __init__(
+        self, message: str = "Import file contains no data rows", details: Any = None
+    ) -> None:
+        super().__init__(message=message, details=details)
+        self.code = "IMPORT_EMPTY"
+
+
+class ImportTemplateMismatchError(ValidationError):
+    """Required headers missing from template (HTTP 422)."""
+
+    def __init__(self, message: str = "Import template mismatch", details: Any = None) -> None:
+        super().__init__(message=message, details=details)
+        self.code = "IMPORT_TEMPLATE_MISMATCH"
+
+
+class ImportNotFoundError(NotFoundError):
+    """Import batch not found (HTTP 404)."""
+
+    def __init__(self, message: str = "Import not found", details: Any = None) -> None:
+        super().__init__(message=message, details=details)
+        self.code = "IMPORT_NOT_FOUND"
+
+
+class ImportAlreadyCommittedError(ConflictError):
+    """Import is already committed or undone (HTTP 409)."""
+
+    def __init__(self, message: str = "Import is already committed", details: Any = None) -> None:
+        super().__init__(message=message, code="IMPORT_ALREADY_COMMITTED", details=details)
+
+
+class ImportNotCommittedError(ConflictError):
+    """Import is not committed (HTTP 409)."""
+
+    def __init__(self, message: str = "Import is not committed", details: Any = None) -> None:
+        super().__init__(message=message, code="IMPORT_NOT_COMMITTED", details=details)
+
+
+class ImportHasErrorsError(ConflictError):
+    """Import contains error rows and skip_invalid is false (HTTP 409)."""
+
+    def __init__(self, message: str = "Import has invalid rows", details: Any = None) -> None:
+        super().__init__(message=message, code="IMPORT_HAS_ERRORS", details=details)
+
+
+class ImportStaleError(ConflictError):
+    """Import preview plan is stale due to concurrent changes or fingerprint mismatch (HTTP 409)."""
+
+    def __init__(
+        self, message: str = "Import preview is stale. Please re-upload.", details: Any = None
+    ) -> None:
+        super().__init__(message=message, code="IMPORT_STALE", details=details)
+
+
+class ImportNothingToImportError(ConflictError):
+    """Import has zero candidate rows to import (HTTP 409)."""
+
+    def __init__(self, message: str = "No rows to import", details: Any = None) -> None:
+        super().__init__(message=message, code="IMPORT_NOTHING_TO_IMPORT", details=details)
+
+
 def register_error_handlers(app: FastAPI) -> None:
     """Register custom exception handlers on the FastAPI application."""
 
@@ -326,6 +417,7 @@ def register_error_handlers(app: FastAPI) -> None:
             403: "FORBIDDEN",
             405: "METHOD_NOT_ALLOWED",
             409: "CONFLICT",
+            413: "IMPORT_FILE_TOO_LARGE",
             422: "VALIDATION_ERROR",
             429: "RATE_LIMITED",
             503: "SERVICE_UNAVAILABLE",
