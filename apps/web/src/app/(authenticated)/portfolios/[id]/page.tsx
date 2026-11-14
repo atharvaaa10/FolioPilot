@@ -35,15 +35,26 @@ import { SipCard } from "@/components/sips/sip-card";
 import { InstallmentsDialog } from "@/components/sips/installments-dialog";
 import { ImportDialog } from "@/components/imports/import-dialog";
 import { ImportHistory } from "@/components/imports/import-history";
+import { ValuationCards, formatXirrPercent, getXirrMessage } from "@/components/valuation/valuation-cards";
+import { ValueSeriesChart } from "@/components/valuation/value-series-chart";
+import { getPortfolioValuation } from "@/lib/valuation-api";
 import { fundsApi } from "@/lib/funds-api";
 import {
   formatDate,
   formatInr,
   formatNav,
+  formatSignedGain,
   formatUnits,
   getAssetClassBadge,
   getTodayIsoDate,
 } from "@/lib/format";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+
 import { evaluateTargets, VALID_ASSET_CLASSES } from "@/lib/targets";
 import { deriveTransactionValues } from "@/lib/transaction-hint";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -142,6 +153,13 @@ export default function PortfolioDetailPage({ params }: PageProps) {
   const sips = sipsData?.items || [];
   const [isCreateSipOpen, setIsCreateSipOpen] = useState(false);
   const [selectedSipForInstallments, setSelectedSipForInstallments] = useState<SipDetail | null>(null);
+
+  // Valuation Query (Phase 5 live valuation, gains, XIRR)
+  const { data: valuationData } = useQuery({
+    queryKey: ["portfolio-valuation", id],
+    queryFn: () => getPortfolioValuation(id, true),
+  });
+
 
   // Target Allocations State
   const [targetRows, setTargetRows] = useState<TargetAllocation[]>([]);
@@ -244,6 +262,7 @@ export default function PortfolioDetailPage({ params }: PageProps) {
       queryClient.invalidateQueries({ queryKey: ["portfolio", id] });
       queryClient.invalidateQueries({ queryKey: ["holdings", id] });
       queryClient.invalidateQueries({ queryKey: ["transactions", id] });
+      queryClient.invalidateQueries({ queryKey: ["portfolio-valuation", id] });
       setIsAddTxnOpen(false);
       resetTxnForm();
     },
@@ -261,6 +280,7 @@ export default function PortfolioDetailPage({ params }: PageProps) {
       queryClient.invalidateQueries({ queryKey: ["portfolio", id] });
       queryClient.invalidateQueries({ queryKey: ["holdings", id] });
       queryClient.invalidateQueries({ queryKey: ["transactions", id] });
+      queryClient.invalidateQueries({ queryKey: ["portfolio-valuation", id] });
       setIsEditTxnOpen(false);
       setEditingTxn(null);
     },
@@ -284,6 +304,7 @@ export default function PortfolioDetailPage({ params }: PageProps) {
       queryClient.invalidateQueries({ queryKey: ["portfolio", id] });
       queryClient.invalidateQueries({ queryKey: ["holdings", id] });
       queryClient.invalidateQueries({ queryKey: ["transactions", id] });
+      queryClient.invalidateQueries({ queryKey: ["portfolio-valuation", id] });
     },
     onError: (err: any) => {
       const code = err?.response?.data?.error?.code;
@@ -456,56 +477,64 @@ export default function PortfolioDetailPage({ params }: PageProps) {
         </div>
       </div>
 
-      {/* Summary Cards: 3 Metric Cards Only */}
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs uppercase tracking-wide">
-              Total Cost Basis
-            </CardDescription>
-            <CardTitle className="text-2xl font-mono font-bold">
-              {formatInr(holdingsTotals?.cost_basis ?? portfolio.total_cost_basis)}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-muted-foreground">
-              Total capital invested across open positions
-            </p>
-          </CardContent>
-        </Card>
+      {/* Valuation & Summary Performance Cards */}
+      {valuationData ? (
+        <div className="space-y-6">
+          <ValuationCards totals={valuationData.totals} />
+          <ValueSeriesChart portfolioId={id} />
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription className="text-xs uppercase tracking-wide">
+                Total Cost Basis
+              </CardDescription>
+              <CardTitle className="text-2xl font-mono font-bold">
+                {formatInr(holdingsTotals?.cost_basis ?? portfolio.total_cost_basis)}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground">
+                Total capital invested across open positions
+              </p>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs uppercase tracking-wide">
-              Open Positions
-            </CardDescription>
-            <CardTitle className="text-2xl font-bold">
-              {holdingsTotals?.open_positions ?? portfolio.open_positions}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-muted-foreground">
-              Schemes currently held in this portfolio
-            </p>
-          </CardContent>
-        </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription className="text-xs uppercase tracking-wide">
+                Open Positions
+              </CardDescription>
+              <CardTitle className="text-2xl font-bold">
+                {holdingsTotals?.open_positions ?? portfolio.open_positions}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground">
+                Schemes currently held in this portfolio
+              </p>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs uppercase tracking-wide">
-              Transactions
-            </CardDescription>
-            <CardTitle className="text-2xl font-bold">
-              {transactions.length || portfolio.total_transactions}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-muted-foreground">
-              Ledger records in chronological history
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription className="text-xs uppercase tracking-wide">
+                Transactions
+              </CardDescription>
+              <CardTitle className="text-2xl font-bold">
+                {transactions.length || portfolio.total_transactions}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground">
+                Ledger records in chronological history
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
 
       {/* Target Asset Allocation Editor Card (Always Visible) */}
       <Card>
@@ -759,15 +788,17 @@ export default function PortfolioDetailPage({ params }: PageProps) {
                   <TableHead className="text-right">Units</TableHead>
                   <TableHead className="text-right">Avg Cost</TableHead>
                   <TableHead className="text-right">Cost Basis</TableHead>
-                  <TableHead className="text-right">Total Bought</TableHead>
-                  <TableHead className="text-right">Total Sold</TableHead>
-                  <TableHead className="text-center">Dates (First - Last)</TableHead>
+                  <TableHead className="text-right">NAV & Date</TableHead>
+                  <TableHead className="text-right">Current Value</TableHead>
+                  <TableHead className="text-right">Gain</TableHead>
+                  <TableHead className="text-right">XIRR</TableHead>
                   <TableHead className="text-center">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {holdings.map((h) => {
                   const badge = getAssetClassBadge(h.fund.asset_class);
+                  const valItem = valuationData?.items.find((v) => v.scheme_code === h.scheme_code);
                   return (
                     <TableRow key={h.scheme_code}>
                       <TableCell>
@@ -795,14 +826,50 @@ export default function PortfolioDetailPage({ params }: PageProps) {
                       <TableCell className="text-right font-mono font-medium">
                         {formatInr(h.cost_basis)}
                       </TableCell>
-                      <TableCell className="text-right font-mono text-muted-foreground">
-                        {formatInr(h.total_bought)}
+                      <TableCell className="text-right font-mono">
+                        <div>{formatNav(valItem?.nav || h.fund.latest_nav)}</div>
+                        {(valItem?.nav_date || h.fund.latest_nav_date) && (
+                          <div className="text-xs text-muted-foreground font-sans">
+                            {formatDate(valItem?.nav_date || h.fund.latest_nav_date)}
+                          </div>
+                        )}
+                        <div className="flex flex-wrap gap-1 justify-end mt-1">
+                          {valItem?.nav_source === "fallback_cost" && (
+                            <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-500">
+                              Fallback Cost
+                            </Badge>
+                          )}
+                          {valItem?.is_stale && (
+                            <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-500">
+                              Stale
+                            </Badge>
+                          )}
+                          {valItem?.nav_older_than_ledger && (
+                            <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-500">
+                              NAV &lt; Ledger
+                            </Badge>
+                          )}
+                        </div>
                       </TableCell>
-                      <TableCell className="text-right font-mono text-muted-foreground">
-                        {formatInr(h.total_sold)}
+                      <TableCell className="text-right font-mono font-semibold">
+                        {formatInr(valItem?.current_value)}
                       </TableCell>
-                      <TableCell className="text-center text-xs text-muted-foreground">
-                        {formatDate(h.first_txn_date)} - {formatDate(h.last_txn_date)}
+                      <TableCell className="text-right font-mono text-sm">
+                        {formatSignedGain(valItem?.unrealized_gain, valItem?.unrealized_gain_pct)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-sm">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-help underline decoration-dotted underline-offset-4">
+                                {formatXirrPercent(valItem?.xirr?.rate)}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs text-xs">
+                              {valItem?.xirr ? getXirrMessage(valItem.xirr) : "XIRR not computed"}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       </TableCell>
                       <TableCell className="text-center">
                         <Badge variant={h.is_closed ? "secondary" : "default"}>
@@ -813,6 +880,7 @@ export default function PortfolioDetailPage({ params }: PageProps) {
                   );
                 })}
               </TableBody>
+
             </Table>
           )}
         </CardContent>
