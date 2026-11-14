@@ -97,7 +97,7 @@ Key flows:
 | 3A | Portfolios, targets, transaction ledger, derived positions | Built; owner to run verify scripts, then push |
 | 3B | SIPs: schedule, pauses, step-up, automatic installments | Done |
 | 4 | Excel import of transactions | Built; owner to run verify-phase4 |
-| 5 | Valuation, XIRR, dashboard | Planned |
+| 5 | Valuation, XIRR, dashboard | Built; owner to run verify-phase5 |
 | 6 | Rebalancing, risk score, goals, history | Planned |
 | 7 | AI: tool-calling assistant | Planned |
 | 8 | AI: RAG over factsheets with citations | Planned |

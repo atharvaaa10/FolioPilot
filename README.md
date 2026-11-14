@@ -41,11 +41,11 @@ make migrate
 - **Frontend Web Application**: [http://localhost:3000](http://localhost:3000)
   - `/login`: Investor sign in with client and server validation
   - `/register`: New investor account registration with Argon2id hashing
-  - `/dashboard`: Protected investor dashboard (AuthGate)
+  - `/dashboard`: Protected investor dashboard featuring total net worth, realized & unrealized gains, overall XIRR, asset allocation donut chart, per-portfolio breakdown, top holdings table, and interactive value-over-time trend chart
   - `/funds`: Mutual fund directory with debounced search, filters, and freshness status
   - `/funds/[schemeCode]`: Fund detail view with interactive NAV history chart and track toggle
   - `/portfolios`: Portfolio list view, create portfolio modal, and overview cards
-  - `/portfolios/[id]`: Portfolio detail view with target allocations editor, holdings table, and transaction ledger
+  - `/portfolios/[id]`: Portfolio detail view with target allocations editor, valuation summary, holdings table (NAV, value, gain, XIRR, badges), transaction ledger, and portfolio value-over-time chart
 - **Backend API Endpoints**:
   - `POST /api/v1/auth/register`: Create user account & initial refresh token family (201)
   - `POST /api/v1/auth/login`: Authenticate credentials with timing protection (200)
@@ -87,6 +87,9 @@ make migrate
   - `POST /api/v1/portfolios/{id}/imports/{import_id}/commit`: Commit staged valid transactions to ledger under portfolio row lock (200)
   - `POST /api/v1/portfolios/{id}/imports/{import_id}/undo`: Undo committed import batch and reverse applied transactions under portfolio row lock (200)
   - `DELETE /api/v1/portfolios/{id}/imports/{import_id}`: Discard staged import preview (200)
+  - `GET /api/v1/portfolios/{id}/valuation`: Compute-on-read portfolio valuation, per-position gains, price source indicators, and XIRR (200)
+  - `GET /api/v1/valuation/summary`: Aggregated total value, unrealized/realized gains, and overall XIRR across all user portfolios (200)
+  - `GET /api/v1/portfolios/{id}/value-series`: Chronological valuation and cost basis timeseries with range filter (`1m`, `6m`, `1y`, `3y`, `5y`, `max`) capped at 400 points (200)
   - `GET /api/v1/health`: Lightweight liveness probe (200)
   - `GET /api/v1/health/ready`: PostgreSQL & Redis readiness probe (200/503)
   - `GET /docs`: Swagger OpenAPI documentation (development mode)

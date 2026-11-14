@@ -214,4 +214,34 @@ All API responses must strictly follow the standard envelope:
   - `IMPORT_STALE` (HTTP 409): Ledger state changed since preview was generated (`plan_fingerprint` mismatch).
   - `IMPORT_NOTHING_TO_IMPORT` (HTTP 409): All rows in batch are duplicates or errors, resulting in 0 valid imports.
 
+## 16. Valuation, Gains, XIRR & Value Series Architecture
+- **Compute-on-Read Principle**:
+  - Full architectural spec in [docs/valuation.md](docs/valuation.md).
+  - Valuation, unrealized gains, realized gains, and XIRR are always computed on read from the transaction ledger and latest NAV data.
+  - No pre-aggregated balances, holding snapshots, or cached position totals are stored in the database.
+- **Price Rules & Fallbacks**:
+  - `amfi_latest`: Official NAV from `funds.last_nav_date` and `funds.last_nav_value`. Used whenever NAV data is present.
+  - `fallback_cost`: If a fund has no recorded NAV history or `last_nav_value` is null, valuation falls back to average cost basis (`nav = average_cost`, `current_value = cost_basis`, `unrealized_gain = 0.00`). Position is explicitly flagged with `price_source: "fallback_cost"`.
+  - Staleness Threshold: A position is flagged `is_stale = true` if `as_of_date` is more than 7 days behind the valuation date (`NAV_STALE_DAYS = 7`).
+  - Desynchronized NAV Alignment: If `latest_nav_date < last_txn_date`, the position is flagged `nav_older_than_ledger = true`. In XIRR flow assembly, the position's terminal valuation date is capped at `max(latest_nav_date, last_txn_date)`.
+- **Rounding & Totals**:
+  - Per-position: `units` (4 decimals), `nav` (4 decimals), `current_value` (quantized to 2 decimals), `cost_basis` (quantized to 2 decimals), `unrealized_gain` (quantized to 2 decimals), `realized_gain` (quantized to 2 decimals), `total_gain` (quantized to 2 decimals).
+  - Totals: Portfolio-level and overall summary totals (`current_value`, `cost_basis`, `unrealized_gain`, `realized_gain`, `total_gain`) are strictly the sums of rounded per-position values. They are never computed from unrounded intermediate numbers.
+- **XIRR Solver Math & Float Exception**:
+  - Solves $\text{NPV}(r) = \sum_{i=1}^N c_i \cdot (1 + r)^{-(d_i - d_0)/365} = 0$ using exponential substitution $x = \ln(1+r)$, leading to monotonic $f(x) = \sum c_i \cdot \exp(-x \cdot t_i) = 0$ on bounded domain $x \in [\ln(0.0001), \ln(101)]$ ($r \in [-0.9999, 100.00]$).
+  - **Float64 Isolation**: Float64 computation is strictly isolated inside `apps/api/app/services/xirr.py` within `f_eval` and `_bisection` for numerical performance. Input cash flows are Decimal; the resulting rate is converted back to Decimal and quantized to 6 decimals (`0.000001`). No float values leak outside `xirr.py`.
+  - Flow Netting: Multiple cash flows occurring on the exact same calendar date are summed into a single net cash flow before root solving.
+  - Rate Bounds & Ambiguity: Grid scanning followed by bisection root refinement. If multiple roots are found, the root with minimum $|r|$ is selected, and `ambiguous = true`.
+  - Reason Codes: Evaluated in strict order: `NO_TRANSACTIONS`, `NO_NAV_DATA`, `INSUFFICIENT_FLOWS`, `PERIOD_TOO_SHORT` (holding period $< 30$ days), `NO_SOLUTION`.
+  - Cash Flow Conventions: External buys are negative flows; sells are positive flows; final valuation is positive terminal flow. Internal reinvested dividends (`DIVIDEND_REINVEST_IS_CASH_FLOW = False`) are not external cash flows and are omitted from portfolio/fund XIRR.
+  - Funds with `fallback_cost` are excluded from portfolio and overall XIRR flow aggregation, with notes clearly returned in the response.
+- **Value Series Sweep**:
+  - Single chronological sweep $O(T + D)$ merging ledger transactions and daily NAV history.
+  - Forward-fills NAV for non-trading days.
+  - Downsamples to maximum 400 points (`MAX_SERIES_POINTS = 400`), always guaranteeing that the latest valuation date is included as the final point.
+- **Response Caching & Security**:
+  - Valuation and summary endpoints return `Cache-Control: no-store` to prevent caching of sensitive financial metrics.
+  - Rate limited to 120 requests/minute per authenticated user (`VALUATION_REQUESTS_PER_MIN = 120`).
+
+
 
