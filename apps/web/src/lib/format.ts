@@ -1,25 +1,84 @@
 /** Formatting utilities for Indian currency (INR), units, dates, and badge styling. */
 
+import Decimal from "decimal.js";
+
 export interface BadgeStyle {
   label: string;
   className: string;
 }
 
-export function formatInr(amount: number | string | null | undefined): string {
+export function formatInr(amount: number | string | Decimal | null | undefined): string {
   if (amount === null || amount === undefined || amount === "") {
     return "₹0.00";
   }
-  const num = typeof amount === "number" ? amount : parseFloat(amount);
-  if (Number.isNaN(num)) {
+  try {
+    const d = new Decimal(amount).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    const isNeg = d.isNegative();
+    const absFixed = d.abs().toFixed(2);
+    const [intPart = "0", decPart = "00"] = absFixed.split(".");
+    const last3 = intPart.slice(-3);
+    const rest = intPart.slice(0, -3);
+    const grouped = rest
+      ? rest.replace(/\B(?=(\d{2})+(?!\d))/g, ",") + "," + last3
+      : last3;
+    return `${isNeg ? "-" : ""}₹${grouped}.${decPart}`;
+  } catch {
     return "₹0.00";
   }
-  return `₹${num.toLocaleString("en-IN", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
 }
 
 export const formatCurrency = formatInr;
+
+export function formatPercent(pct: number | string | Decimal | null | undefined): string {
+  if (pct === null || pct === undefined || pct === "") {
+    return "0.00%";
+  }
+  try {
+    const d = new Decimal(pct).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    return `${d.toFixed(2)}%`;
+  } catch {
+    return "0.00%";
+  }
+}
+
+export function formatSignedGain(
+  gain: number | string | Decimal | null | undefined,
+  pct?: number | string | Decimal | null | undefined,
+): string {
+  if (gain === null || gain === undefined || gain === "") {
+    return "₹0.00";
+  }
+  try {
+    const dGain = new Decimal(gain).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    const isZero = dGain.isZero();
+    const isPos = dGain.isPositive() && !isZero;
+    const isNeg = dGain.isNegative();
+
+    const absFixed = dGain.abs().toFixed(2);
+    const [intPart = "0", decPart = "00"] = absFixed.split(".");
+    const last3 = intPart.slice(-3);
+    const rest = intPart.slice(0, -3);
+    const grouped = rest
+      ? rest.replace(/\B(?=(\d{2})+(?!\d))/g, ",") + "," + last3
+      : last3;
+
+    const moneySign = isPos ? "+" : isNeg ? "-" : "";
+    const moneyStr = `${moneySign}₹${grouped}.${decPart}`;
+
+    if (pct === null || pct === undefined || pct === "") {
+      return moneyStr;
+    }
+
+    const dPct = new Decimal(pct).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    const pctSign = dPct.isPositive() && !dPct.isZero() ? "+" : "";
+    const pctStr = `${pctSign}${dPct.toFixed(2)}%`;
+
+    return `${moneyStr} (${pctStr})`;
+  } catch {
+    return "₹0.00";
+  }
+}
+
 
 export function formatNav(nav: number | string | null | undefined): string {
   if (nav === null || nav === undefined || nav === "") {
