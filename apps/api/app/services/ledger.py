@@ -28,6 +28,7 @@ class DerivedHolding:
     last_txn_date: date
     txn_count: int
     is_closed: bool
+    realized_gain: Decimal = Decimal("0.00")
 
 
 def ledger_sort_key(txn: Any) -> tuple[date, int, datetime, str]:
@@ -111,6 +112,7 @@ def compute_holdings(transactions: list[Any]) -> dict[UUID, DerivedHolding]:
         running_cost = Decimal("0")
         total_bought = Decimal("0")
         total_sold = Decimal("0")
+        running_realized = Decimal("0")
 
         first_txn_date = fund_txns[0].txn_date
         last_txn_date = fund_txns[-1].txn_date
@@ -132,6 +134,10 @@ def compute_holdings(transactions: list[Any]) -> dict[UUID, DerivedHolding]:
                 cost_of_sold = (txn.units * avg_cost_val).quantize(
                     AMOUNT_QUANT, rounding=ROUND_HALF_UP
                 )
+                gain_on_sell = (txn.amount - (avg_cost_val * txn.units)).quantize(
+                    AMOUNT_QUANT, rounding=ROUND_HALF_UP
+                )
+                running_realized += gain_on_sell
                 running_cost -= cost_of_sold
                 running_units -= txn.units
 
@@ -152,6 +158,7 @@ def compute_holdings(transactions: list[Any]) -> dict[UUID, DerivedHolding]:
 
         bought_out = total_bought.quantize(AMOUNT_QUANT, rounding=ROUND_HALF_UP)
         sold_out = total_sold.quantize(AMOUNT_QUANT, rounding=ROUND_HALF_UP)
+        realized_out = running_realized.quantize(AMOUNT_QUANT, rounding=ROUND_HALF_UP)
         is_closed = units_out == Decimal("0")
 
         holdings[fund_id] = DerivedHolding(
@@ -165,42 +172,19 @@ def compute_holdings(transactions: list[Any]) -> dict[UUID, DerivedHolding]:
             last_txn_date=last_txn_date,
             txn_count=txn_count,
             is_closed=is_closed,
+            realized_gain=realized_out,
         )
 
     return holdings
 
 
 def compute_realized_gain(transactions: list[Any]) -> Decimal:
-    """Internal helper to calculate realized gain using weighted average cost basis.
+    """Calculate total realized gain using weighted average cost basis.
 
     Validated against worked example: sell of 30 units after 150 units costing 8000.00
     realizes 500.00 when proceeds are 2100.00.
     """
-    sorted_txns = sorted(transactions, key=ledger_sort_key)
-    running_units = Decimal("0")
-    running_cost = Decimal("0")
-    realized_gain = Decimal("0")
-
-    for txn in sorted_txns:
-        txn_type = getattr(txn, "txn_type", "").upper()
-        if txn_type == "BUY":
-            running_units += txn.units
-            running_cost += txn.amount
-        elif txn_type == "SELL":
-            if running_units > Decimal("0"):
-                current_avg_nav = running_cost / running_units
-            else:
-                current_avg_nav = Decimal("0")
-
-            cost_basis_sold = (txn.units * current_avg_nav).quantize(
-                AMOUNT_QUANT, rounding=ROUND_HALF_UP
-            )
-            gain = txn.amount - cost_basis_sold
-            realized_gain += gain
-            running_units -= txn.units
-            running_cost -= cost_basis_sold
-
-            if running_units == Decimal("0"):
-                running_cost = Decimal("0")
-
-    return realized_gain.quantize(AMOUNT_QUANT, rounding=ROUND_HALF_UP)
+    holdings = compute_holdings(transactions)
+    return sum((h.realized_gain for h in holdings.values()), Decimal("0.00")).quantize(
+        AMOUNT_QUANT, rounding=ROUND_HALF_UP
+    )
