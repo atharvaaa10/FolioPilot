@@ -1,0 +1,61 @@
+{
+  "as_of": "2026-11-14",
+  "items": [
+    {
+      "scheme_code": 999888,
+      "fund": {
+        "name": "Fallback Test Fund",
+        "amc": "Test AMC",
+        "asset_class": "debt",
+        "sub_category": "liquid",
+        "plan_type": "direct",
+        "option_type": "growth"
+      },
+      "units": "50.0000",
+      "avg_cost": "100.0000",
+      "cost_basis": "5000.00",
+      "nav": "100.00000000",
+      "nav_date": null,
+      "nav_source": "fallback_cost",
+      "nav_age_days": 0,
+      "is_stale": false,
+      "nav_older_than_ledger": true,
+      "current_value": "5000.00",
+      "unrealized_gain": "0.00",
+      "unrealized_gain_pct": "0.00",
+      "realized_gain": "0.00",
+      "xirr": {
+        "rate": null,
+        "reason": "NO_NAV_DATA",
+        "short_period": false,
+        "ambiguous": false,
+        "flows_count": 1,
+        "first_flow_date": "2026-01-01",
+        "last_flow_date": "2026-01-01",
+        "excluded_funds": 0
+      },
+      "is_closed": false
+    }
+  ],
+  "totals": {
+    "cost_basis": "5000.00",
+    "current_value": "5000.00",
+    "unrealized_gain": "0.00",
+    "unrealized_gain_pct": "0.00",
+    "realized_gain": "0.00",
+    "total_gain": "0.00",
+    "open_positions": 1,
+    "fallback_positions": 1,
+    "stale_positions": 0,
+    "xirr": {
+      "rate": null,
+      "reason": "NO_NAV_DATA",
+      "short_period": false,
+      "ambiguous": false,
+      "flows_count": 1,
+      "first_flow_date": "2026-01-01",
+      "last_flow_date": "2026-01-01",
+      "excluded_funds": 1
+    }
+  }
+}

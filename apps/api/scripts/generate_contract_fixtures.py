@@ -469,6 +469,369 @@ def generate_fixtures() -> dict[str, Any]:
         "details": None,
     }
 
+    # 13. Phase 5 Valuation, Summary, and Series Fixtures
+    val_fund_summary = {
+        "name": "Parag Parikh Flexi Cap Fund",
+        "amc": "PPFAS Mutual Fund",
+        "asset_class": "equity",
+        "sub_category": "flexi-cap",
+        "plan_type": "direct",
+        "option_type": "growth",
+    }
+
+    valuation_data = {
+        "as_of": "2026-11-14",
+        "items": [
+            {
+                "scheme_code": 122639,
+                "fund": val_fund_summary,
+                "units": "120.0000",
+                "avg_cost": "53.3333",
+                "cost_basis": "6400.00",
+                "nav": "80.00000000",
+                "nav_date": "2026-11-14",
+                "nav_source": "amfi_latest",
+                "nav_age_days": 0,
+                "is_stale": False,
+                "nav_older_than_ledger": False,
+                "current_value": "9600.00",
+                "unrealized_gain": "3200.00",
+                "unrealized_gain_pct": "50.00",
+                "realized_gain": "500.00",
+                "xirr": {
+                    "rate": "0.100000",
+                    "reason": None,
+                    "short_period": False,
+                    "ambiguous": False,
+                    "flows_count": 4,
+                    "first_flow_date": "2024-01-15",
+                    "last_flow_date": "2026-11-14",
+                    "excluded_funds": 0,
+                },
+                "is_closed": False,
+            }
+        ],
+        "totals": {
+            "cost_basis": "6400.00",
+            "current_value": "9600.00",
+            "unrealized_gain": "3200.00",
+            "unrealized_gain_pct": "50.00",
+            "realized_gain": "500.00",
+            "total_gain": "3700.00",
+            "open_positions": 1,
+            "fallback_positions": 0,
+            "stale_positions": 0,
+            "xirr": {
+                "rate": "0.100000",
+                "reason": None,
+                "short_period": False,
+                "ambiguous": False,
+                "flows_count": 4,
+                "first_flow_date": "2024-01-15",
+                "last_flow_date": "2026-11-14",
+                "excluded_funds": 0,
+            },
+        },
+    }
+
+    valuation_with_fallback = {
+        "as_of": "2026-11-14",
+        "items": [
+            {
+                "scheme_code": 999888,
+                "fund": {
+                    "name": "Fallback Test Fund",
+                    "amc": "Test AMC",
+                    "asset_class": "debt",
+                    "sub_category": "liquid",
+                    "plan_type": "direct",
+                    "option_type": "growth",
+                },
+                "units": "50.0000",
+                "avg_cost": "100.0000",
+                "cost_basis": "5000.00",
+                "nav": "100.00000000",
+                "nav_date": None,
+                "nav_source": "fallback_cost",
+                "nav_age_days": 0,
+                "is_stale": False,
+                "nav_older_than_ledger": True,
+                "current_value": "5000.00",
+                "unrealized_gain": "0.00",
+                "unrealized_gain_pct": "0.00",
+                "realized_gain": "0.00",
+                "xirr": {
+                    "rate": None,
+                    "reason": "NO_NAV_DATA",
+                    "short_period": False,
+                    "ambiguous": False,
+                    "flows_count": 1,
+                    "first_flow_date": "2026-01-01",
+                    "last_flow_date": "2026-01-01",
+                    "excluded_funds": 0,
+                },
+                "is_closed": False,
+            }
+        ],
+        "totals": {
+            "cost_basis": "5000.00",
+            "current_value": "5000.00",
+            "unrealized_gain": "0.00",
+            "unrealized_gain_pct": "0.00",
+            "realized_gain": "0.00",
+            "total_gain": "0.00",
+            "open_positions": 1,
+            "fallback_positions": 1,
+            "stale_positions": 0,
+            "xirr": {
+                "rate": None,
+                "reason": "NO_NAV_DATA",
+                "short_period": False,
+                "ambiguous": False,
+                "flows_count": 1,
+                "first_flow_date": "2026-01-01",
+                "last_flow_date": "2026-01-01",
+                "excluded_funds": 1,
+            },
+        },
+    }
+
+    valuation_with_stale = {
+        "as_of": "2026-10-30",
+        "items": [
+            {
+                "scheme_code": 122639,
+                "fund": val_fund_summary,
+                "units": "10.0000",
+                "avg_cost": "50.0000",
+                "cost_basis": "500.00",
+                "nav": "60.00000000",
+                "nav_date": "2026-10-30",
+                "nav_source": "amfi_latest",
+                "nav_age_days": 15,
+                "is_stale": True,
+                "nav_older_than_ledger": False,
+                "current_value": "600.00",
+                "unrealized_gain": "100.00",
+                "unrealized_gain_pct": "20.00",
+                "realized_gain": "0.00",
+                "xirr": {
+                    "rate": "0.150000",
+                    "reason": None,
+                    "short_period": True,
+                    "ambiguous": False,
+                    "flows_count": 2,
+                    "first_flow_date": "2026-06-01",
+                    "last_flow_date": "2026-10-30",
+                    "excluded_funds": 0,
+                },
+                "is_closed": False,
+            }
+        ],
+        "totals": {
+            "cost_basis": "500.00",
+            "current_value": "600.00",
+            "unrealized_gain": "100.00",
+            "unrealized_gain_pct": "20.00",
+            "realized_gain": "0.00",
+            "total_gain": "100.00",
+            "open_positions": 1,
+            "fallback_positions": 0,
+            "stale_positions": 1,
+            "xirr": {
+                "rate": "0.150000",
+                "reason": None,
+                "short_period": True,
+                "ambiguous": False,
+                "flows_count": 2,
+                "first_flow_date": "2026-06-01",
+                "last_flow_date": "2026-10-30",
+                "excluded_funds": 0,
+            },
+        },
+    }
+
+    valuation_with_xirr_null = {
+        "as_of": "2026-11-14",
+        "items": [
+            {
+                "scheme_code": 122639,
+                "fund": val_fund_summary,
+                "units": "10.0000",
+                "avg_cost": "50.0000",
+                "cost_basis": "500.00",
+                "nav": "55.00000000",
+                "nav_date": "2026-11-14",
+                "nav_source": "amfi_latest",
+                "nav_age_days": 0,
+                "is_stale": False,
+                "nav_older_than_ledger": False,
+                "current_value": "550.00",
+                "unrealized_gain": "50.00",
+                "unrealized_gain_pct": "10.00",
+                "realized_gain": "0.00",
+                "xirr": {
+                    "rate": None,
+                    "reason": "PERIOD_TOO_SHORT",
+                    "short_period": True,
+                    "ambiguous": False,
+                    "flows_count": 2,
+                    "first_flow_date": "2026-11-01",
+                    "last_flow_date": "2026-11-14",
+                    "excluded_funds": 0,
+                },
+                "is_closed": False,
+            }
+        ],
+        "totals": {
+            "cost_basis": "500.00",
+            "current_value": "550.00",
+            "unrealized_gain": "50.00",
+            "unrealized_gain_pct": "10.00",
+            "realized_gain": "0.00",
+            "total_gain": "50.00",
+            "open_positions": 1,
+            "fallback_positions": 0,
+            "stale_positions": 0,
+            "xirr": {
+                "rate": None,
+                "reason": "PERIOD_TOO_SHORT",
+                "short_period": True,
+                "ambiguous": False,
+                "flows_count": 2,
+                "first_flow_date": "2026-11-01",
+                "last_flow_date": "2026-11-14",
+                "excluded_funds": 0,
+            },
+        },
+    }
+
+    valuation_with_ambiguous_xirr = {
+        "as_of": "2026-11-14",
+        "items": [
+            {
+                "scheme_code": 122639,
+                "fund": val_fund_summary,
+                "units": "10.0000",
+                "avg_cost": "50.0000",
+                "cost_basis": "500.00",
+                "nav": "60.00000000",
+                "nav_date": "2026-11-14",
+                "nav_source": "amfi_latest",
+                "nav_age_days": 0,
+                "is_stale": False,
+                "nav_older_than_ledger": False,
+                "current_value": "600.00",
+                "unrealized_gain": "100.00",
+                "unrealized_gain_pct": "20.00",
+                "realized_gain": "0.00",
+                "xirr": {
+                    "rate": "0.100000",
+                    "reason": None,
+                    "short_period": False,
+                    "ambiguous": True,
+                    "flows_count": 3,
+                    "first_flow_date": "2024-01-01",
+                    "last_flow_date": "2026-11-14",
+                    "excluded_funds": 0,
+                },
+                "is_closed": False,
+            }
+        ],
+        "totals": {
+            "cost_basis": "500.00",
+            "current_value": "600.00",
+            "unrealized_gain": "100.00",
+            "unrealized_gain_pct": "20.00",
+            "realized_gain": "0.00",
+            "total_gain": "100.00",
+            "open_positions": 1,
+            "fallback_positions": 0,
+            "stale_positions": 0,
+            "xirr": {
+                "rate": "0.100000",
+                "reason": None,
+                "short_period": False,
+                "ambiguous": True,
+                "flows_count": 3,
+                "first_flow_date": "2024-01-01",
+                "last_flow_date": "2026-11-14",
+                "excluded_funds": 0,
+            },
+        },
+    }
+
+    val_totals: dict[str, Any] = valuation_data["totals"]  # type: ignore[assignment]
+    valuation_summary_data = {
+        "as_of": "2026-11-14",
+        "totals": val_totals,
+        "portfolios": [
+            {
+                "id": portfolio_id,
+                "name": "Retirement",
+                "cost_basis": "6400.00",
+                "current_value": "9600.00",
+                "unrealized_gain": "3200.00",
+                "unrealized_gain_pct": "50.00",
+                "realized_gain": "500.00",
+                "total_gain": "3700.00",
+                "open_positions": 1,
+                "fallback_positions": 0,
+                "stale_positions": 0,
+                "xirr": val_totals["xirr"],
+            }
+        ],
+        "allocation": {
+            "by_asset_class": [
+                {
+                    "asset_class": "equity",
+                    "current_value": "9600.00",
+                    "percent": "100.00",
+                }
+            ],
+            "by_sub_category": [
+                {
+                    "sub_category": "flexi-cap",
+                    "current_value": "9600.00",
+                    "percent": "100.00",
+                }
+            ],
+        },
+        "top_holdings": [
+            {
+                "scheme_code": 122639,
+                "fund": val_fund_summary,
+                "units": "120.0000",
+                "current_value": "9600.00",
+                "unrealized_gain": "3200.00",
+            }
+        ],
+        "counts": {
+            "portfolios": 1,
+            "open_positions": 1,
+            "fallback_positions": 0,
+            "stale_positions": 0,
+        },
+    }
+
+    value_series_data = {
+        "range": "1y",
+        "start_date": "2025-11-14",
+        "end_date": "2026-11-14",
+        "points": [
+            {
+                "date": "2025-11-14",
+                "value": "5000.00",
+                "cost_basis": "5000.00",
+            },
+            {
+                "date": "2026-11-14",
+                "value": "9600.00",
+                "cost_basis": "6400.00",
+            },
+        ],
+    }
+
     fixtures = {
         "targets.json": targets_data,
         "portfolio-detail.json": portfolio_detail_data,
@@ -502,6 +865,13 @@ def generate_fixtures() -> dict[str, Any]:
         "error-import-stale.json": error_import_stale,
         "error-import-nothing-to-import.json": error_import_nothing_to_import,
         "error-import-already-committed.json": error_import_already_committed,
+        "valuation-response.json": valuation_data,
+        "valuation-with-fallback.json": valuation_with_fallback,
+        "valuation-with-stale.json": valuation_with_stale,
+        "valuation-with-xirr-null.json": valuation_with_xirr_null,
+        "valuation-with-ambiguous-xirr.json": valuation_with_ambiguous_xirr,
+        "valuation-summary.json": valuation_summary_data,
+        "value-series.json": value_series_data,
     }
 
     for filename, content in fixtures.items():

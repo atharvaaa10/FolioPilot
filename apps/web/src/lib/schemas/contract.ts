@@ -522,4 +522,151 @@ export const ImportAlreadyCommittedErrorSchema = z.object({
   details: z.unknown().optional(),
 });
 
+// -------------------------------------------------------------
+// Phase 5: Valuation, XIRR, and Value Series
+// -------------------------------------------------------------
+
+export const XirrResultSchema = z.object({
+  rate: z.string().nullable(),
+  reason: z.string().nullable(),
+  short_period: z.boolean(),
+  ambiguous: z.boolean(),
+  flows_count: z.number(),
+  first_flow_date: z.string().nullable(),
+  last_flow_date: z.string().nullable(),
+  excluded_funds: z.number(),
+});
+export type XirrResult = z.infer<typeof XirrResultSchema>;
+
+export const FundBasicSummarySchema = z.object({
+  name: z.string(),
+  amc: z.string(),
+  asset_class: z.string(),
+  sub_category: z.string().nullable(),
+  plan_type: z.string(),
+  option_type: z.string(),
+});
+export type FundBasicSummary = z.infer<typeof FundBasicSummarySchema>;
+
+export const ValuationItemSchema = z.object({
+  scheme_code: z.number(),
+  fund: FundBasicSummarySchema,
+  units: z.string(),
+  avg_cost: z.string(),
+  cost_basis: z.string(),
+  nav: z.string(),
+  nav_date: z.string().nullable(),
+  nav_source: z.string(),
+  nav_age_days: z.number(),
+  is_stale: z.boolean(),
+  nav_older_than_ledger: z.boolean(),
+  current_value: z.string(),
+  unrealized_gain: z.string(),
+  unrealized_gain_pct: z.string().nullable(),
+  realized_gain: z.string(),
+  xirr: XirrResultSchema,
+  is_closed: z.boolean(),
+});
+export type ValuationItem = z.infer<typeof ValuationItemSchema>;
+
+export const ValuationTotalsSchema = z.object({
+  cost_basis: z.string(),
+  current_value: z.string(),
+  unrealized_gain: z.string(),
+  unrealized_gain_pct: z.string().nullable(),
+  realized_gain: z.string(),
+  total_gain: z.string(),
+  open_positions: z.number(),
+  fallback_positions: z.number(),
+  stale_positions: z.number(),
+  xirr: XirrResultSchema,
+});
+export type ValuationTotals = z.infer<typeof ValuationTotalsSchema>;
+
+export const ValuationResponseSchema = z.object({
+  as_of: z.string().nullable(),
+  items: z.array(ValuationItemSchema),
+  totals: ValuationTotalsSchema,
+});
+export type ValuationResponse = z.infer<typeof ValuationResponseSchema>;
+
+export const PortfolioSummaryItemSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  cost_basis: z.string(),
+  current_value: z.string(),
+  unrealized_gain: z.string(),
+  unrealized_gain_pct: z.string().nullable(),
+  realized_gain: z.string(),
+  total_gain: z.string(),
+  open_positions: z.number(),
+  fallback_positions: z.number(),
+  stale_positions: z.number(),
+  xirr: XirrResultSchema,
+});
+export type PortfolioSummaryItem = z.infer<typeof PortfolioSummaryItemSchema>;
+
+export const AssetClassAllocationItemSchema = z.object({
+  asset_class: z.string(),
+  current_value: z.string(),
+  percent: z.string(),
+});
+export type AssetClassAllocationItem = z.infer<typeof AssetClassAllocationItemSchema>;
+
+export const SubCategoryAllocationItemSchema = z.object({
+  sub_category: z.string(),
+  current_value: z.string(),
+  percent: z.string(),
+});
+export type SubCategoryAllocationItem = z.infer<typeof SubCategoryAllocationItemSchema>;
+
+export const AllocationSchema = z.object({
+  by_asset_class: z.array(AssetClassAllocationItemSchema),
+  by_sub_category: z.array(SubCategoryAllocationItemSchema),
+});
+export type Allocation = z.infer<typeof AllocationSchema>;
+
+export const TopHoldingSchema = z.object({
+  scheme_code: z.number(),
+  fund: FundBasicSummarySchema,
+  units: z.string(),
+  current_value: z.string(),
+  unrealized_gain: z.string(),
+});
+export type TopHolding = z.infer<typeof TopHoldingSchema>;
+
+export const SummaryCountsSchema = z.object({
+  portfolios: z.number(),
+  open_positions: z.number(),
+  fallback_positions: z.number(),
+  stale_positions: z.number(),
+});
+export type SummaryCounts = z.infer<typeof SummaryCountsSchema>;
+
+export const ValuationSummaryResponseSchema = z.object({
+  as_of: z.string().nullable(),
+  totals: ValuationTotalsSchema,
+  portfolios: z.array(PortfolioSummaryItemSchema),
+  allocation: AllocationSchema,
+  top_holdings: z.array(TopHoldingSchema),
+  counts: SummaryCountsSchema,
+});
+export type ValuationSummaryResponse = z.infer<typeof ValuationSummaryResponseSchema>;
+
+export const SeriesPointSchema = z.object({
+  date: z.string(),
+  value: z.string(),
+  cost_basis: z.string(),
+});
+export type SeriesPoint = z.infer<typeof SeriesPointSchema>;
+
+export const ValueSeriesResponseSchema = z.object({
+  range: z.string(),
+  start_date: z.string(),
+  end_date: z.string(),
+  points: z.array(SeriesPointSchema),
+});
+export type ValueSeriesResponse = z.infer<typeof ValueSeriesResponseSchema>;
+
+
 

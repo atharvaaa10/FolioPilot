@@ -1,0 +1,61 @@
+{
+  "as_of": "2026-11-14",
+  "items": [
+    {
+      "scheme_code": 122639,
+      "fund": {
+        "name": "Parag Parikh Flexi Cap Fund",
+        "amc": "PPFAS Mutual Fund",
+        "asset_class": "equity",
+        "sub_category": "flexi-cap",
+        "plan_type": "direct",
+        "option_type": "growth"
+      },
+      "units": "10.0000",
+      "avg_cost": "50.0000",
+      "cost_basis": "500.00",
+      "nav": "60.00000000",
+      "nav_date": "2026-11-14",
+      "nav_source": "amfi_latest",
+      "nav_age_days": 0,
+      "is_stale": false,
+      "nav_older_than_ledger": false,
+      "current_value": "600.00",
+      "unrealized_gain": "100.00",
+      "unrealized_gain_pct": "20.00",
+      "realized_gain": "0.00",
+      "xirr": {
+        "rate": "0.100000",
+        "reason": null,
+        "short_period": false,
+        "ambiguous": true,
+        "flows_count": 3,
+        "first_flow_date": "2024-01-01",
+        "last_flow_date": "2026-11-14",
+        "excluded_funds": 0
+      },
+      "is_closed": false
+    }
+  ],
+  "totals": {
+    "cost_basis": "500.00",
+    "current_value": "600.00",
+    "unrealized_gain": "100.00",
+    "unrealized_gain_pct": "20.00",
+    "realized_gain": "0.00",
+    "total_gain": "100.00",
+    "open_positions": 1,
+    "fallback_positions": 0,
+    "stale_positions": 0,
+    "xirr": {
+      "rate": "0.100000",
+      "reason": null,
+      "short_period": false,
+      "ambiguous": true,
+      "flows_count": 3,
+      "first_flow_date": "2024-01-01",
+      "last_flow_date": "2026-11-14",
+      "excluded_funds": 0
+    }
+  }
+}

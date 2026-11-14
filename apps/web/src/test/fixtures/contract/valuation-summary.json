@@ -1,0 +1,87 @@
+{
+  "as_of": "2026-11-14",
+  "totals": {
+    "cost_basis": "6400.00",
+    "current_value": "9600.00",
+    "unrealized_gain": "3200.00",
+    "unrealized_gain_pct": "50.00",
+    "realized_gain": "500.00",
+    "total_gain": "3700.00",
+    "open_positions": 1,
+    "fallback_positions": 0,
+    "stale_positions": 0,
+    "xirr": {
+      "rate": "0.100000",
+      "reason": null,
+      "short_period": false,
+      "ambiguous": false,
+      "flows_count": 4,
+      "first_flow_date": "2024-01-15",
+      "last_flow_date": "2026-11-14",
+      "excluded_funds": 0
+    }
+  },
+  "portfolios": [
+    {
+      "id": "11111111-1111-1111-1111-111111111111",
+      "name": "Retirement",
+      "cost_basis": "6400.00",
+      "current_value": "9600.00",
+      "unrealized_gain": "3200.00",
+      "unrealized_gain_pct": "50.00",
+      "realized_gain": "500.00",
+      "total_gain": "3700.00",
+      "open_positions": 1,
+      "fallback_positions": 0,
+      "stale_positions": 0,
+      "xirr": {
+        "rate": "0.100000",
+        "reason": null,
+        "short_period": false,
+        "ambiguous": false,
+        "flows_count": 4,
+        "first_flow_date": "2024-01-15",
+        "last_flow_date": "2026-11-14",
+        "excluded_funds": 0
+      }
+    }
+  ],
+  "allocation": {
+    "by_asset_class": [
+      {
+        "asset_class": "equity",
+        "current_value": "9600.00",
+        "percent": "100.00"
+      }
+    ],
+    "by_sub_category": [
+      {
+        "sub_category": "flexi-cap",
+        "current_value": "9600.00",
+        "percent": "100.00"
+      }
+    ]
+  },
+  "top_holdings": [
+    {
+      "scheme_code": 122639,
+      "fund": {
+        "name": "Parag Parikh Flexi Cap Fund",
+        "amc": "PPFAS Mutual Fund",
+        "asset_class": "equity",
+        "sub_category": "flexi-cap",
+        "plan_type": "direct",
+        "option_type": "growth"
+      },
+      "units": "120.0000",
+      "current_value": "9600.00",
+      "unrealized_gain": "3200.00"
+    }
+  ],
+  "counts": {
+    "portfolios": 1,
+    "open_positions": 1,
+    "fallback_positions": 0,
+    "stale_positions": 0
+  }
+}
