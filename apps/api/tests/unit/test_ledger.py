@@ -358,3 +358,160 @@ def test_hypothesis_sequence_ending_at_zero_units_has_zero_cost(txns: list[MockT
     assert h.units == Decimal("0.0000")
     assert h.cost_basis == Decimal("0.00")
     assert h.is_closed
+
+
+def test_realized_gain_example_c() -> None:
+    """Example C: buy 100@50, buy 50@60, sell 30@70 yields 500.00 realized gain."""
+    f_id = uuid.uuid4()
+    txns = [
+        MockTxn(
+            id=uuid.uuid4(),
+            fund_id=f_id,
+            txn_type="BUY",
+            txn_date=date(2025, 1, 10),
+            units=Decimal("100.0000"),
+            nav=Decimal("50.00000000"),
+            amount=Decimal("5000.00"),
+            created_at=datetime(2025, 1, 10, 10, 0, tzinfo=UTC),
+        ),
+        MockTxn(
+            id=uuid.uuid4(),
+            fund_id=f_id,
+            txn_type="BUY",
+            txn_date=date(2025, 2, 10),
+            units=Decimal("50.0000"),
+            nav=Decimal("60.00000000"),
+            amount=Decimal("3000.00"),
+            created_at=datetime(2025, 2, 10, 10, 0, tzinfo=UTC),
+        ),
+        MockTxn(
+            id=uuid.uuid4(),
+            fund_id=f_id,
+            txn_type="SELL",
+            txn_date=date(2025, 3, 10),
+            units=Decimal("30.0000"),
+            nav=Decimal("70.00000000"),
+            amount=Decimal("2100.00"),
+            created_at=datetime(2025, 3, 10, 10, 0, tzinfo=UTC),
+        ),
+    ]
+    holdings = compute_holdings(txns)
+    h = holdings[f_id]
+    assert h.units == Decimal("120.0000")
+    assert h.cost_basis == Decimal("6400.00")
+    assert h.realized_gain == Decimal("500.00")
+    assert not h.is_closed
+
+
+def test_realized_gain_fully_sold_position_keeps_realized_total_and_is_closed() -> None:
+    """A fully sold position keeps its realized total and is_closed is True."""
+    f_id = uuid.uuid4()
+    txns = [
+        MockTxn(
+            id=uuid.uuid4(),
+            fund_id=f_id,
+            txn_type="BUY",
+            txn_date=date(2025, 1, 10),
+            units=Decimal("100.0000"),
+            nav=Decimal("50.00000000"),
+            amount=Decimal("5000.00"),
+            created_at=datetime(2025, 1, 10, 10, 0, tzinfo=UTC),
+        ),
+        MockTxn(
+            id=uuid.uuid4(),
+            fund_id=f_id,
+            txn_type="SELL",
+            txn_date=date(2025, 2, 10),
+            units=Decimal("100.0000"),
+            nav=Decimal("60.00000000"),
+            amount=Decimal("6000.00"),
+            created_at=datetime(2025, 2, 10, 10, 0, tzinfo=UTC),
+        ),
+    ]
+    holdings = compute_holdings(txns)
+    h = holdings[f_id]
+    assert h.units == Decimal("0.0000")
+    assert h.cost_basis == Decimal("0.00")
+    assert h.realized_gain == Decimal("1000.00")
+    assert h.is_closed is True
+
+
+def test_dividend_reinvest_adds_units_and_cost_but_no_realized_gain() -> None:
+    """dividend_reinvest increases units and cost basis without creating realized gain."""
+    f_id = uuid.uuid4()
+    txns = [
+        MockTxn(
+            id=uuid.uuid4(),
+            fund_id=f_id,
+            txn_type="BUY",
+            txn_date=date(2025, 1, 10),
+            units=Decimal("100.0000"),
+            nav=Decimal("50.00000000"),
+            amount=Decimal("5000.00"),
+            created_at=datetime(2025, 1, 10, 10, 0, tzinfo=UTC),
+        ),
+        MockTxn(
+            id=uuid.uuid4(),
+            fund_id=f_id,
+            txn_type="DIVIDEND_REINVEST",
+            txn_date=date(2025, 2, 10),
+            units=Decimal("10.0000"),
+            nav=Decimal("50.00000000"),
+            amount=Decimal("500.00"),
+            created_at=datetime(2025, 2, 10, 10, 0, tzinfo=UTC),
+        ),
+    ]
+    holdings = compute_holdings(txns)
+    h = holdings[f_id]
+    assert h.units == Decimal("110.0000")
+    assert h.cost_basis == Decimal("5500.00")
+    assert h.realized_gain == Decimal("0.00")
+    assert not h.is_closed
+
+
+def test_realized_gain_rounding_quantized_once_per_sell() -> None:
+    """Realized gain calculation quantizes once per sell transaction at 0.01."""
+    f_id = uuid.uuid4()
+    # 300 units for 1000.00 -> avg cost is 3.33333333333333...
+    txns = [
+        MockTxn(
+            id=uuid.uuid4(),
+            fund_id=f_id,
+            txn_type="BUY",
+            txn_date=date(2025, 1, 1),
+            units=Decimal("300.0000"),
+            nav=Decimal("3.33333333"),
+            amount=Decimal("1000.00"),
+            created_at=datetime(2025, 1, 1, 10, 0, tzinfo=UTC),
+        ),
+        # Sell 100 units for 400.00 -> cost of sold = 100 * (1000/300) = 333.3333...
+        # Quantized to 333.33. Gain = 400.00 - 333.3333... = 66.6666... quantized to 66.67
+        MockTxn(
+            id=uuid.uuid4(),
+            fund_id=f_id,
+            txn_type="SELL",
+            txn_date=date(2025, 2, 1),
+            units=Decimal("100.0000"),
+            nav=Decimal("4.00000000"),
+            amount=Decimal("400.00"),
+            created_at=datetime(2025, 2, 1, 10, 0, tzinfo=UTC),
+        ),
+        # Sell 100 units for 400.00 -> remaining cost is 1000 - 333.33 = 666.67
+        # remaining units is 200. avg cost is 666.67 / 200 = 3.33335
+        # cost of sold = 100 * 3.33335 = 333.335 -> quantized to 333.34
+        # Gain = 400.00 - 333.335 = 66.665 -> quantized to 66.67
+        MockTxn(
+            id=uuid.uuid4(),
+            fund_id=f_id,
+            txn_type="SELL",
+            txn_date=date(2025, 3, 1),
+            units=Decimal("100.0000"),
+            nav=Decimal("4.00000000"),
+            amount=Decimal("400.00"),
+            created_at=datetime(2025, 3, 1, 10, 0, tzinfo=UTC),
+        ),
+    ]
+    holdings = compute_holdings(txns)
+    h = holdings[f_id]
+    assert h.units == Decimal("100.0000")
+    assert h.realized_gain == Decimal("133.34")  # 66.67 + 66.67

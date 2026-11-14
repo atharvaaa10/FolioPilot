@@ -3,7 +3,10 @@ import {
   formatDate,
   formatInr,
   formatNav,
+  formatPercent,
+  formatSignedGain,
   formatUnits,
+
   getAssetClassBadge,
   getOptionBadge,
   getPlanBadge,
@@ -19,7 +22,56 @@ describe("format utilities", () => {
       expect(formatInr(null)).toBe("₹0.00");
       expect(formatInr(undefined)).toBe("₹0.00");
     });
+
+    it("performs exact Decimal ROUND_HALF_UP rounding without floating point drift", () => {
+      expect(formatInr("1234.565")).toBe("₹1,234.57");
+      expect(formatInr("1234.564")).toBe("₹1,234.56");
+      expect(formatInr("-500.00")).toBe("-₹500.00");
+    });
   });
+
+  describe("formatPercent", () => {
+    it("formats positive, zero, and negative percentages", () => {
+      expect(formatPercent("5.67")).toBe("5.67%");
+      expect(formatPercent("0")).toBe("0.00%");
+      expect(formatPercent("-2.5")).toBe("-2.50%");
+    });
+
+    it("handles null and undefined by returning 0.00%", () => {
+      expect(formatPercent(null)).toBe("0.00%");
+      expect(formatPercent(undefined)).toBe("0.00%");
+    });
+
+    it("performs ROUND_HALF_UP rounding", () => {
+      expect(formatPercent("15.505")).toBe("15.51%");
+      expect(formatPercent("15.504")).toBe("15.50%");
+    });
+  });
+
+  describe("formatSignedGain", () => {
+    it("formats positive gain with plus signs: +₹1,234.00 (+5.67%)", () => {
+      expect(formatSignedGain("1234.00", "5.67")).toBe("+₹1,234.00 (+5.67%)");
+    });
+
+    it("formats negative gain: -₹500.00 (-2.50%)", () => {
+      expect(formatSignedGain("-500.00", "-2.50")).toBe("-₹500.00 (-2.50%)");
+    });
+
+    it("formats zero gain without plus sign: ₹0.00 (0.00%)", () => {
+      expect(formatSignedGain("0.00", "0.00")).toBe("₹0.00 (0.00%)");
+    });
+
+    it("handles null pct gracefully", () => {
+      expect(formatSignedGain("1234.00", null)).toBe("+₹1,234.00");
+      expect(formatSignedGain("-500.00", undefined)).toBe("-₹500.00");
+    });
+
+    it("handles null gain gracefully", () => {
+      expect(formatSignedGain(null, "5.00")).toBe("₹0.00");
+      expect(formatSignedGain(undefined, null)).toBe("₹0.00");
+    });
+  });
+
 
   describe("formatNav", () => {
     it("formats NAV up to 4 decimal places", () => {

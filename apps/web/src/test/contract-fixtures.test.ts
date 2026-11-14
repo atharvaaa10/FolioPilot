@@ -33,6 +33,9 @@ import {
   TrackFundResponseSchema,
   TransactionListResponseSchema,
   TransactionManagedBySipErrorSchema,
+  ValuationResponseSchema,
+  ValuationSummaryResponseSchema,
+  ValueSeriesResponseSchema,
   validateContract,
 } from "@/lib/schemas/contract";
 
@@ -68,6 +71,14 @@ import errorImportHasErrorsFixture from "./fixtures/contract/error-import-has-er
 import errorImportNothingToImportFixture from "./fixtures/contract/error-import-nothing-to-import.json";
 import errorImportStaleFixture from "./fixtures/contract/error-import-stale.json";
 import errorImportTemplateMismatchFixture from "./fixtures/contract/error-import-template-mismatch.json";
+import valuationResponseFixture from "./fixtures/contract/valuation-response.json";
+import valuationWithFallbackFixture from "./fixtures/contract/valuation-with-fallback.json";
+import valuationWithStaleFixture from "./fixtures/contract/valuation-with-stale.json";
+import valuationWithXirrNullFixture from "./fixtures/contract/valuation-with-xirr-null.json";
+import valuationWithAmbiguousXirrFixture from "./fixtures/contract/valuation-with-ambiguous-xirr.json";
+import valuationSummaryFixture from "./fixtures/contract/valuation-summary.json";
+import valueSeriesFixture from "./fixtures/contract/value-series.json";
+
 
 describe("Committed Contract Fixtures Validation", () => {
   it("validates portfolio-detail.json against PortfolioDetailSchema", () => {
@@ -332,5 +343,73 @@ describe("Committed Contract Fixtures Validation", () => {
     );
     expect(errMismatch.code).toBe("IMPORT_TEMPLATE_MISMATCH");
   });
+
+  it("validates Phase 5 valuation fixtures against ValuationResponseSchema", () => {
+    const val = validateContract(
+      ValuationResponseSchema,
+      valuationResponseFixture,
+      "valuation-response.json",
+    );
+    expect(val.as_of).toBe("2026-11-14");
+    expect(val.totals.current_value).toBe("9600.00");
+    expect(val.items[0]?.xirr.rate).toBe("0.100000");
+
+    const fb = validateContract(
+      ValuationResponseSchema,
+      valuationWithFallbackFixture,
+      "valuation-with-fallback.json",
+    );
+    expect(fb.items[0]?.nav_source).toBe("fallback_cost");
+    expect(fb.totals.fallback_positions).toBe(1);
+
+    const stale = validateContract(
+      ValuationResponseSchema,
+      valuationWithStaleFixture,
+      "valuation-with-stale.json",
+    );
+    expect(stale.items[0]?.is_stale).toBe(true);
+    expect(stale.totals.stale_positions).toBe(1);
+
+    const xnull = validateContract(
+      ValuationResponseSchema,
+      valuationWithXirrNullFixture,
+      "valuation-with-xirr-null.json",
+    );
+    expect(xnull.totals.xirr.rate).toBeNull();
+    expect(xnull.totals.xirr.reason).toBe("PERIOD_TOO_SHORT");
+
+    const amb = validateContract(
+      ValuationResponseSchema,
+      valuationWithAmbiguousXirrFixture,
+      "valuation-with-ambiguous-xirr.json",
+    );
+    expect(amb.totals.xirr.ambiguous).toBe(true);
+  });
+
+  it("validates Phase 5 valuation-summary.json against ValuationSummaryResponseSchema", () => {
+    const sum = validateContract(
+      ValuationSummaryResponseSchema,
+      valuationSummaryFixture,
+      "valuation-summary.json",
+    );
+    expect(sum.as_of).toBe("2026-11-14");
+    expect(sum.portfolios.length).toBe(1);
+    expect(sum.allocation.by_asset_class[0]?.asset_class).toBe("equity");
+    expect(sum.top_holdings[0]?.units).toBe("120.0000");
+    expect(sum.counts.portfolios).toBe(1);
+  });
+
+  it("validates Phase 5 value-series.json against ValueSeriesResponseSchema", () => {
+    const ser = validateContract(
+      ValueSeriesResponseSchema,
+      valueSeriesFixture,
+      "value-series.json",
+    );
+    expect(ser.range).toBe("1y");
+    expect(ser.points.length).toBe(2);
+    expect(ser.points[0]?.value).toBe("5000.00");
+    expect(ser.points[1]?.value).toBe("9600.00");
+  });
 });
+
 

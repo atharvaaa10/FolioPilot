@@ -177,3 +177,38 @@ async def client(
     transport = ASGITransport(app=test_app)
     async with AsyncClient(transport=transport, base_url="http://test") as test_client:
         yield test_client
+
+
+@pytest_asyncio.fixture
+async def seed_synthetic_funds(test_session: AsyncSession) -> None:
+    """Seed test database with shared synthetic funds from synthetic_funds module."""
+    from datetime import UTC, date, datetime
+    from decimal import Decimal
+
+    from app.core.synthetic_funds import ALL_SYNTHETIC_FUNDS
+    from app.models.fund import Fund
+
+    now = datetime.now(UTC)
+    for sf in ALL_SYNTHETIC_FUNDS:
+        fund = Fund(
+            scheme_code=sf.scheme_code,
+            isin_growth=sf.isin_growth,
+            isin_reinvest=sf.isin_reinvest,
+            name=sf.name,
+            name_normalized=sf.name.lower(),
+            amc="Test AMC",
+            category_raw="Flexi Cap",
+            asset_class=sf.asset_class,
+            sub_category=sf.sub_category,
+            classification_source="category",
+            plan_type="direct",
+            option_type="growth",
+            latest_nav=Decimal(sf.nav),
+            latest_nav_date=date(2026, 11, 1),
+            is_active=sf.is_active,
+            is_tracked=False,
+            first_seen_at=now,
+            last_seen_at=now,
+        )
+        test_session.add(fund)
+    await test_session.commit()
