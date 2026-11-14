@@ -87,6 +87,17 @@ SYNTHETIC_AMBIGUOUS_FUND_2 = SyntheticFund(
     nav="40.00",
 )
 
+SYNTHETIC_VALUATION_FUND = SyntheticFund(
+    scheme_code=999101,
+    name="FolioPilot Synthetic Valuation Fund",
+    isin_growth="INF999101018",
+    isin_reinvest="INF999101026",
+    asset_class="equity",
+    sub_category="flexi-cap",
+    is_active=True,
+    nav="115.5000",
+)
+
 ALL_SYNTHETIC_FUNDS: list[SyntheticFund] = [
     SYNTHETIC_PPFC,
     SYNTHETIC_ISIN_FUND_A,
@@ -94,4 +105,5 @@ ALL_SYNTHETIC_FUNDS: list[SyntheticFund] = [
     SYNTHETIC_INACTIVE_FUND,
     SYNTHETIC_AMBIGUOUS_FUND_1,
     SYNTHETIC_AMBIGUOUS_FUND_2,
+    SYNTHETIC_VALUATION_FUND,
 ]
